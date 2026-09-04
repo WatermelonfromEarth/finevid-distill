@@ -1,0 +1,37 @@
+{
+  "models": {
+    "BM25": {
+      "complete_recall_at_5": 0.5775764439411099,
+      "mrr": 0.6355272956548565,
+      "ndcg_at_10": 0.6490031269527898,
+      "recall_at_1": 0.35423744809362023,
+      "recall_at_5": 0.7105255352424095
+    },
+    "Frozen BGE": {
+      "complete_recall_at_5": 0.7338618346545867,
+      "mrr": 0.789972216690781,
+      "ndcg_at_10": 0.7987064228742327,
+      "recall_at_1": 0.49071752143666075,
+      "recall_at_5": 0.8434584479318341
+    },
+    "Qwen teacher": {
+      "complete_recall_at_5": 0.7406568516421291,
+      "mrr": 0.8041115327355418,
+      "ndcg_at_10": 0.8034924895691132,
+      "recall_at_1": 0.5020964784554819,
+      "recall_at_5": 0.8504449118265653
+    },
+    "Random": {
+      "complete_recall_at_5": 0.12004530011325028,
+      "mrr": 0.2114810911807643,
+      "ndcg_at_10": 0.21514811158852284,
+      "recall_at_1": 0.047019090762012626,
+      "recall_at_5": 0.20923663916302648
+    }
+  },
+  "question_count": 883,
+  "recall_definition": "fraction_of_all_gold_candidates_retrieved",
+  "seed": 42,
+  "split": "dev",
+  "tie_policy": "stable_original_candidate_order"
+}

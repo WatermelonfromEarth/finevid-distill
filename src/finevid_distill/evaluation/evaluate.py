@@ -19,7 +19,7 @@ from finevid_distill.models.bm25_ranker import BM25Ranker
 from finevid_distill.models.random_ranker import RandomRanker
 
 
-MODEL_ORDER = ("random", "bm25", "bge", "teacher")
+MODEL_ORDER = ("random", "bm25", "bge", "teacher", "checkpoint")
 DISPLAY_METRICS = (
     ("recall_at_1", "Recall@1"),
     ("recall_at_5", "Recall@5"),
@@ -147,6 +147,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--bge-revision", default=BGE_MODEL_REVISION)
     parser.add_argument("--local-files-only", action="store_true")
     parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        help="Local Sentence Transformers model directory for a trained student.",
+    )
+    parser.add_argument("--checkpoint-label", default="Trained BGE-small")
+    parser.add_argument(
         "--teacher-cache",
         type=Path,
         default=root / "data" / "processed" / "teacher_dev_scores.jsonl",
@@ -179,6 +185,17 @@ def main(argv: list[str] | None = None) -> int:
         )
     if "teacher" in args.models:
         rankers["teacher"] = CachedTeacherRanker(args.teacher_cache)
+    if "checkpoint" in args.models:
+        if args.checkpoint is None:
+            raise ValueError("--checkpoint is required when evaluating checkpoint.")
+        rankers["checkpoint"] = BGERanker(
+            str(args.checkpoint),
+            revision=None,
+            device=args.device,
+            batch_size=args.batch_size,
+            local_files_only=True,
+            label=args.checkpoint_label,
+        )
 
     results: dict[str, dict[str, float]] = {}
     for name in args.models:

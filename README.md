@@ -4,7 +4,7 @@
 
 > On FinQA report-level candidate sets, does teacher-score distillation improve BGE-small beyond ordinary hard-label fine-tuning?
 
-This repository starts with an experiment contract and a reproducible Python environment. Later milestones may implement data preparation, scoring, training, and evaluation, but they must not silently change the contract below.
+The repository fixes the experiment contract, materializes one shared training set for both student treatments, and keeps modelling and evaluation logic reproducible. Later work must not silently change the contract below.
 
 ## Experiment contract
 
@@ -16,7 +16,7 @@ This repository starts with an experiment contract and a reproducible Python env
 | Teacher | `Qwen/Qwen3-Reranker-0.6B` |
 | Student | `BAAI/bge-small-en-v1.5` |
 | Random seed | `42` |
-| Training candidate set | Approximately 8 evidence candidates per question: all labelled positives plus within-report BM25 hard negatives |
+| Training candidate set | Approximately 8 evidence candidates per question: all labelled positives plus seeded uniform negatives sampled without replacement from the same report |
 | Development split | Used for implementation checks, hyperparameter choices, and selection of the final configuration |
 | Test split | Kept untouched until the final configuration has been selected; used once for the final comparison |
 
@@ -28,9 +28,9 @@ Every final result table must contain all five rows. The two trained student row
 
 | System | Training or scoring signal | Role |
 |---|---|---|
-| BM25 | Lexical BM25 score; no neural training | Lexical baseline and hard-negative source |
+| BM25 | Lexical BM25 score; no neural training | Lexical baseline |
 | Frozen BGE-small | Off-the-shelf BGE-small similarity; no fine-tuning | Pretrained student baseline |
-| Hard-label BGE-small | One-hot FinQA relevance labels | Ordinary fine-tuning baseline |
+| Hard-label BGE-small | Equal-mass distribution over all FinQA gold labels | Ordinary fine-tuning baseline |
 | Distilled BGE-small | Soft target distribution made from the frozen Qwen teacher scores | Treatment under test |
 | Qwen teacher | Frozen Qwen reranker score | Teacher reference comparison |
 
@@ -183,6 +183,56 @@ The notebook:
 
 Each cache line preserves processed candidate order and stores finite raw yes-minus-no logit differences with `temperature_applied: false`. Partial files resume at the next complete question after a Colab disconnect; an interrupted final write is discarded while all earlier validated rows are retained. If the teacher gate fails, do not train: inspect the financial retrieval instruction, table serialization, and truncation first.
 
+The complete caches were produced and independently validated against the checked-in processed splits. On all 883 development questions, Qwen passed the required quality gate:
+
+| Model | Recall@1 | Recall@5 | MRR | NDCG@10 | CompleteRecall@5 |
+|---|---:|---:|---:|---:|---:|
+| Frozen BGE | 0.490718 | 0.843458 | 0.789972 | 0.798706 | 0.733862 |
+| Qwen teacher | 0.502096 | 0.850445 | 0.804112 | 0.803492 | 0.740657 |
+
+The full comparison is tracked in `outputs/dev_teacher_comparison.json`; the large score caches remain in persistent artifact storage and are intentionally excluded from Git.
+
+## Fixed shared training rows
+
+Build the single file consumed by both hard-label and distilled training:
+
+```powershell
+python src/data/build_training_rows.py `
+  --teacher-cache path/to/teacher_train_scores.jsonl `
+  --output data/processed/train_rows.jsonl
+```
+
+For every training question, the builder retains all gold candidates, uniformly samples negatives without replacement from the same report until the row is approximately eight candidates, and applies a per-question seed-42 shuffle. It joins candidate text and raw teacher scores by candidate ID, then validates every output field against both source files. Hard-label training ignores the stored teacher scores; the later distilled treatment must read the same rows and ordering.
+
+The complete seed-42 artifact contains 6,251 rows and 49,938 candidate occurrences (minimum 6, maximum 9, mean 7.988802). Its SHA-256 is `df56334db862a9e45504db7a1b0846c394e3e7fc9c1414dd89c101efa05a847e`. The generated JSONL contains teacher outputs and is therefore ignored by Git along with the full caches.
+
+## Hard-label BGE-small training
+
+`src/training/train_hard_labels.py` trains BGE-small with normalized query and candidate embeddings. Questions retain the official BGE query instruction; candidates remain uninstructed. Within each fixed row, the target distribution assigns equal probability to every gold candidate and zero to every negative, and the objective is listwise cross-entropy over cosine scores.
+
+The recommended GPU entry point is `notebooks/03_colab_hard_label.ipynb`. It rebuilds/verifies the shared rows from the Drive cache, runs focused tests, and starts or resumes:
+
+```powershell
+python src/training/train_hard_labels.py `
+  --train-rows data/processed/train_rows.jsonl `
+  --dev-data data/processed/dev.jsonl `
+  --device cuda
+```
+
+Each completed epoch records training loss, development MRR, development NDCG@10, learning rate, mean pre-clipping gradient norm, optimizer steps, and elapsed time. Its checkpoint contains the Sentence Transformers model, optimizer, scheduler, gradient-scaler and Python/NumPy/PyTorch RNG states. Atomic `latest.json` and `best.json` pointers make `--resume` deterministic. At completion the best model is loaded from disk and reevaluated; training fails if the reloaded development metrics change.
+
+Trained checkpoints can also be evaluated directly through the same command and metric implementation as every baseline:
+
+```powershell
+python src/evaluation/evaluate.py `
+  --models checkpoint `
+  --checkpoint outputs/checkpoints/hard_label_student/epochs/epoch-001/model `
+  --checkpoint-label "Hard-label BGE-small" `
+  --output outputs/hard_label_dev.json
+```
+
+Only development evaluation is available during training. The test split remains untouched.
+
 ## Milestone status
 
 - [x] Milestone 0: experiment question, comparisons, metrics, and restrictions are fixed.
@@ -192,5 +242,6 @@ Each cache line preserves processed candidate order and stores finite raw yes-mi
 - [x] Milestone 4: strict validation passes and all 100 train/development audit examples have been manually reviewed.
 - [x] Milestone 5: shared metrics agree with hand-calculated single- and multi-positive cases, including stable score ties.
 - [x] Milestone 6: Random, BM25, and frozen BGE baselines are evaluated on all 883 development questions.
-- [ ] Milestone 7: teacher scoring and cache validation are implemented; run the Colab GPU notebook to produce both full caches and decide the development gate.
-- [ ] Training and experiment execution are intentionally deferred to later milestones.
+- [x] Milestone 7: complete training/development teacher caches validate, and Qwen development MRR 0.804112 exceeds frozen BGE MRR 0.789972.
+- [x] Milestone 8: one deterministic 6,251-row artifact retains every gold fact and exactly aligns candidate, label, text, and teacher-score order.
+- [ ] Milestone 9: the tested hard-label trainer, resumable checkpoint format, shared evaluator integration, and Colab notebook are implemented; the full GPU training run is pending.

@@ -33,6 +33,8 @@ finevid-build-dataset = "finevid_distill.data.build_dataset:main"
 finevid-validate-dataset = "finevid_distill.data.validate_dataset:main"
 finevid-evaluate = "finevid_distill.evaluation.evaluate:main"
 finevid-cache-teacher = "finevid_distill.data.cache_teacher_scores:main"
+finevid-build-training-rows = "finevid_distill.data.build_training_rows:main"
+finevid-train-hard-labels = "finevid_distill.training.train_hard_labels:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

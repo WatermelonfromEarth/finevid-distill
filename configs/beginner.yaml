@@ -13,7 +13,7 @@ dataset:
   training_candidates:
     approximate_per_question: 8
     positives: all_gold_evidence
-    negative_strategy: within_report_bm25_hard_negatives
+    negative_strategy: seeded_uniform_without_replacement_within_report
 
 models:
   teacher:
@@ -44,7 +44,7 @@ comparisons:
     supervision: none
   - id: hard_label_bge_small
     label: Hard-label BGE-small
-    supervision: one_hot_relevance_labels
+    supervision: equal_probability_over_all_gold_candidates
   - id: distilled_bge_small
     label: Distilled BGE-small
     supervision: qwen_teacher_score_distribution
@@ -80,3 +80,15 @@ fairness:
 
 runtime:
   device: auto
+
+training:
+  epochs: 3
+  questions_per_batch: 8
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  max_gradient_norm: 1.0
+  max_sequence_length: 512
+  mixed_precision: fp16
+  hard_label_objective: listwise_cross_entropy
+  hard_label_target: equal_probability_over_all_gold_candidates

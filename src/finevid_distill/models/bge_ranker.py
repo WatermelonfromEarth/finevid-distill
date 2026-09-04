@@ -39,6 +39,8 @@ class BGERanker:
         batch_size: int = 64,
         show_progress: bool = True,
         local_files_only: bool = False,
+        model_instance: Any | None = None,
+        label: str = "Frozen BGE",
     ) -> None:
         self.model_id = model_id
         self.revision = revision
@@ -46,7 +48,8 @@ class BGERanker:
         self.batch_size = batch_size
         self.show_progress = show_progress
         self.local_files_only = local_files_only
-        self._model: Any | None = None
+        self._model: Any | None = model_instance
+        self.label = label
 
     @property
     def model(self) -> Any:

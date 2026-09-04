@@ -50,6 +50,7 @@ def validate_beginner_config(config: Mapping[str, Any]) -> None:
         evaluation = config["evaluation"]
         split_policy = config["split_policy"]
         comparisons = config["comparisons"]
+        training = config["training"]
     except KeyError as error:
         raise ConfigError(f"Missing required section: {error.args[0]}") from error
 
@@ -89,6 +90,18 @@ def validate_beginner_config(config: Mapping[str, Any]) -> None:
             dataset.get("training_candidates", {}).get("positives"),
             "all_gold_evidence",
         ),
+        "training negative strategy": (
+            dataset.get("training_candidates", {}).get("negative_strategy"),
+            "seeded_uniform_without_replacement_within_report",
+        ),
+        "hard-label objective": (
+            training.get("hard_label_objective"),
+            "listwise_cross_entropy",
+        ),
+        "hard-label target": (
+            training.get("hard_label_target"),
+            "equal_probability_over_all_gold_candidates",
+        ),
         "evaluation.primary_metric": (evaluation.get("primary_metric"), "mrr"),
         "split_policy.allow_test_tuning": (
             split_policy.get("allow_test_tuning"),
@@ -105,6 +118,12 @@ def validate_beginner_config(config: Mapping[str, Any]) -> None:
         raise ConfigError(
             "comparisons must contain the five required systems in contract order; "
             f"got {comparison_ids!r}."
+        )
+    hard_label_supervision = comparisons[2].get("supervision")
+    if hard_label_supervision != "equal_probability_over_all_gold_candidates":
+        raise ConfigError(
+            "hard-label supervision must be equal_probability_over_all_gold_candidates; "
+            f"got {hard_label_supervision!r}."
         )
 
     if evaluation.get("metrics") != EXPECTED_METRICS:

@@ -24,6 +24,15 @@ def test_beginner_config_locks_experiment_contract() -> None:
     assert config["experiment"]["seed"] == 42
     assert config["dataset"]["training_candidates"]["approximate_per_question"] == 8
     assert config["dataset"]["training_candidates"]["positives"] == "all_gold_evidence"
+    assert (
+        config["dataset"]["training_candidates"]["negative_strategy"]
+        == "seeded_uniform_without_replacement_within_report"
+    )
+    assert config["training"]["hard_label_objective"] == "listwise_cross_entropy"
+    assert (
+        config["training"]["hard_label_target"]
+        == "equal_probability_over_all_gold_candidates"
+    )
     assert config["split_policy"]["allow_test_tuning"] is False
     assert config["evaluation"]["metrics"] == [
         "recall_at_1",
@@ -46,6 +55,10 @@ def test_beginner_config_contains_all_required_comparisons() -> None:
         "distilled_bge_small",
         "qwen_teacher",
     ]
+    hard_label = next(
+        row for row in config["comparisons"] if row["id"] == "hard_label_bge_small"
+    )
+    assert hard_label["supervision"] == "equal_probability_over_all_gold_candidates"
 
 
 def test_validator_rejects_scope_drift() -> None:

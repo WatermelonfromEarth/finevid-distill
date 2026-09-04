@@ -21,6 +21,8 @@ def test_colab_teacher_notebook_has_gpu_gate_and_no_test_evaluation() -> None:
     assert "--splits', 'train'" in source
     assert "--split', 'test'" not in source
     assert "teacher_test_scores" not in source
+    assert "x-access-token:" not in source
+    assert "GIT_ASKPASS" in source
 
 
 def test_colab_requirements_do_not_replace_cuda_pytorch() -> None:
