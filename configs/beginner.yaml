@@ -1,0 +1,82 @@
+experiment:
+  name: finqa_report_reranking_beginner
+  objective: >-
+    On FinQA report-level candidate sets, does teacher-score distillation
+    improve BGE-small beyond ordinary hard-label fine-tuning?
+  seed: 42
+
+dataset:
+  name: FinQA
+  retrieval_unit: report
+  candidate_unit: evidence_entry
+  candidate_pool: all_prose_entries_and_table_rows_in_the_question_report
+  training_candidates:
+    approximate_per_question: 8
+    positives: all_gold_evidence
+    negative_strategy: within_report_bm25_hard_negatives
+
+models:
+  teacher:
+    model_id: Qwen/Qwen3-Reranker-0.6B
+    revision: e61197ed45024b0ed8a2d74b80b4d909f1255473
+    frozen: true
+    instruction: >-
+      Given a financial question, retrieve every supporting fact from the
+      financial report that is required to answer the question
+    max_length: 512
+    cached_score_type: raw_logit_difference
+    temperature_applied_when_cached: false
+  student:
+    model_id: BAAI/bge-small-en-v1.5
+    revision: 5c38ec7c405ec4b44b94cc5a9bb96e735b38267a
+    query_instruction: "Represent this sentence for searching relevant passages: "
+    candidate_instruction: null
+    normalize_embeddings: true
+  bm25:
+    implementation: rank_bm25.BM25Okapi
+
+comparisons:
+  - id: bm25
+    label: BM25
+    supervision: none
+  - id: frozen_bge_small
+    label: Frozen BGE-small
+    supervision: none
+  - id: hard_label_bge_small
+    label: Hard-label BGE-small
+    supervision: one_hot_relevance_labels
+  - id: distilled_bge_small
+    label: Distilled BGE-small
+    supervision: qwen_teacher_score_distribution
+  - id: qwen_teacher
+    label: Qwen teacher
+    supervision: frozen_teacher_scores
+
+evaluation:
+  primary_metric: mrr
+  metrics:
+    - recall_at_1
+    - recall_at_5
+    - mrr
+    - ndcg_at_10
+    - complete_recall_at_5
+  primary_comparison:
+    treatment: distilled_bge_small
+    baseline: hard_label_bge_small
+  improvement_rule: treatment_test_mrr_strictly_greater_than_baseline_test_mrr
+
+split_policy:
+  train: fit the hard-label and distilled students
+  development: make decisions and select exactly one final configuration
+  test: evaluate only after final configuration selection
+  allow_test_tuning: false
+
+fairness:
+  same_student_initialization: true
+  same_training_candidates: true
+  same_training_budget: true
+  same_evaluation_candidates: true
+  same_evaluation_code: true
+
+runtime:
+  device: auto

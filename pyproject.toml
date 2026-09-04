@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finevid-distill"
+version = "0.1.0"
+description = "A controlled FinQA report-reranking distillation experiment."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "datasets>=3.5,<5",
+    "numpy>=1.26,<3",
+    "pandas>=2.2,<4",
+    "PyYAML>=6,<7",
+    "rank-bm25==0.2.2",
+    "scikit-learn>=1.5,<2",
+    "sentence-transformers>=4,<6",
+    "torch>=2.6,<3",
+    "transformers>=4.51,<6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ipykernel>=7,<8",
+    "nbconvert>=7,<8",
+    "pytest>=8,<10",
+]
+
+[project.scripts]
+finevid-environment = "finevid_distill.environment:main"
+finevid-build-dataset = "finevid_distill.data.build_dataset:main"
+finevid-validate-dataset = "finevid_distill.data.validate_dataset:main"
+finevid-evaluate = "finevid_distill.evaluation.evaluate:main"
+finevid-cache-teacher = "finevid_distill.data.cache_teacher_scores:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --basetemp=.pytest-tmp"
+testpaths = ["tests"]

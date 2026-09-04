@@ -1,0 +1,22 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.pytest-tmp/
+.coverage
+
+# Keep directory documentation, not downloaded data or run artifacts.
+data/raw/*
+!data/raw/README.md
+data/processed/*
+!data/processed/README.md
+!data/processed/train.jsonl
+!data/processed/dev.jsonl
+!data/processed/test.jsonl
+outputs/*
+!outputs/README.md
+!outputs/data_statistics.json
+!outputs/manual_inspection_100.md
+!outputs/dev_baselines.json
+notebooks/.ipynb_checkpoints/

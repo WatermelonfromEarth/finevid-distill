@@ -1,0 +1,10 @@
+# Colab already provides a CUDA-compatible PyTorch build. Do not list torch here.
+transformers==5.16.1
+sentence-transformers==5.7.0
+datasets==4.8.5
+rank-bm25==0.2.2
+numpy==2.5.2
+pandas==3.0.5
+scikit-learn==1.9.0
+PyYAML==6.0.3
+pytest==9.1.1

@@ -1,0 +1,943 @@
+{
+  "candidate_count_anomalies": {
+    "count": 111,
+    "rule": "above split Q3 + 3*IQR",
+    "samples": [
+      {
+        "candidate_count": 79,
+        "question_id": "C/2008/page_212.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 172,
+        "question_id": "GPN/2007/page_97.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 147,
+        "question_id": "INTC/2016/page_33.pdf-4",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 123,
+        "question_id": "PKG/2011/page_14.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 108,
+        "question_id": "MS/2012/page_150.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 227,
+        "question_id": "AWK/2018/page_162.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 99,
+        "question_id": "AWK/2014/page_132.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 105,
+        "question_id": "IPG/2014/page_95.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 496,
+        "question_id": "AWK/2018/page_141.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 80,
+        "question_id": "DISCA/2017/page_22.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 124,
+        "question_id": "IPG/2015/page_79.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 80,
+        "question_id": "CME/2012/page_103.pdf-4",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 132,
+        "question_id": "AWK/2015/page_127.pdf-4",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 127,
+        "question_id": "CME/2017/page_61.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 79,
+        "question_id": "C/2008/page_212.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 147,
+        "question_id": "INTC/2016/page_33.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 221,
+        "question_id": "AWK/2015/page_110.pdf-4",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 81,
+        "question_id": "PPG/2011/page_28.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 80,
+        "question_id": "DISCA/2017/page_22.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 124,
+        "question_id": "IPG/2015/page_79.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 82,
+        "question_id": "ZBH/2002/page_46.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 126,
+        "question_id": "AWK/2017/page_154.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 74,
+        "question_id": "SLG/2018/page_45.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 90,
+        "question_id": "HOLX/2008/page_93.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 160,
+        "question_id": "AMAT/2012/page_35.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 80,
+        "question_id": "CME/2012/page_103.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 160,
+        "question_id": "AMAT/2012/page_35.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 147,
+        "question_id": "INTC/2016/page_33.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 82,
+        "question_id": "ZBH/2002/page_46.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 172,
+        "question_id": "GPN/2007/page_97.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 96,
+        "question_id": "RSG/2008/page_127.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 94,
+        "question_id": "JPM/2005/page_125.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 80,
+        "question_id": "CME/2012/page_103.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 94,
+        "question_id": "JPM/2005/page_125.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 147,
+        "question_id": "INTC/2016/page_33.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 126,
+        "question_id": "AWK/2017/page_154.pdf-4",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 99,
+        "question_id": "AWK/2014/page_132.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 132,
+        "question_id": "AWK/2015/page_127.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 78,
+        "question_id": "MS/2017/page_75.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 75,
+        "question_id": "HOLX/2005/page_61.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 105,
+        "question_id": "IPG/2014/page_95.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 221,
+        "question_id": "AWK/2015/page_110.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 90,
+        "question_id": "HOLX/2008/page_93.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 195,
+        "question_id": "V/2012/page_123.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 496,
+        "question_id": "AWK/2018/page_141.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 105,
+        "question_id": "IPG/2014/page_95.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 126,
+        "question_id": "AWK/2017/page_154.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 79,
+        "question_id": "C/2008/page_212.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 171,
+        "question_id": "AMT/2008/page_14.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 72,
+        "question_id": "IP/2016/page_52.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 232,
+        "question_id": "BLK/2012/page_66.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 78,
+        "question_id": "V/2012/page_28.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 227,
+        "question_id": "AWK/2018/page_162.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 80,
+        "question_id": "CME/2012/page_103.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 227,
+        "question_id": "AWK/2018/page_162.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 123,
+        "question_id": "PKG/2011/page_14.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 72,
+        "question_id": "GPN/2009/page_95.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 73,
+        "question_id": "HOLX/2004/page_59.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 132,
+        "question_id": "AWK/2015/page_127.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 195,
+        "question_id": "V/2012/page_123.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 221,
+        "question_id": "AWK/2015/page_110.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 72,
+        "question_id": "IP/2016/page_52.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 152,
+        "question_id": "V/2008/page_138.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 454,
+        "question_id": "STT/2011/page_85.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 78,
+        "question_id": "MS/2017/page_75.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 82,
+        "question_id": "ZBH/2002/page_46.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 79,
+        "question_id": "C/2008/page_212.pdf-4",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 81,
+        "question_id": "PPG/2011/page_28.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 75,
+        "question_id": "HOLX/2005/page_61.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 221,
+        "question_id": "AWK/2015/page_110.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 232,
+        "question_id": "BLK/2012/page_66.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 171,
+        "question_id": "AMT/2008/page_14.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 175,
+        "question_id": "AMAT/2013/page_35.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 73,
+        "question_id": "V/2009/page_23.pdf-2",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 227,
+        "question_id": "AWK/2018/page_162.pdf-4",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 125,
+        "question_id": "PKG/2012/page_13.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 99,
+        "question_id": "AWK/2014/page_132.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 126,
+        "question_id": "AWK/2017/page_154.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 132,
+        "question_id": "AWK/2015/page_127.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 96,
+        "question_id": "RSG/2008/page_127.pdf-1",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 232,
+        "question_id": "BLK/2012/page_66.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 232,
+        "question_id": "BLK/2012/page_66.pdf-4",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 72,
+        "question_id": "IP/2016/page_52.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 81,
+        "question_id": "PPG/2011/page_28.pdf-3",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 81,
+        "question_id": "PPG/2011/page_28.pdf-4",
+        "split": "train",
+        "upper_outer_fence": 71.0
+      },
+      {
+        "candidate_count": 175,
+        "question_id": "AMAT/2014/page_35.pdf-1",
+        "split": "dev",
+        "upper_outer_fence": 75.0
+      },
+      {
+        "candidate_count": 135,
+        "question_id": "CME/2012/page_70.pdf-3",
+        "split": "dev",
+        "upper_outer_fence": 75.0
+      },
+      {
+        "candidate_count": 135,
+        "question_id": "CME/2012/page_70.pdf-1",
+        "split": "dev",
+        "upper_outer_fence": 75.0
+      },
+      {
+        "candidate_count": 135,
+        "question_id": "CME/2012/page_70.pdf-4",
+        "split": "dev",
+        "upper_outer_fence": 75.0
+      },
+      {
+        "candidate_count": 135,
+        "question_id": "CME/2012/page_70.pdf-2",
+        "split": "dev",
+        "upper_outer_fence": 75.0
+      },
+      {
+        "candidate_count": 145,
+        "question_id": "INTC/2015/page_41.pdf-4",
+        "split": "test",
+        "upper_outer_fence": 68.0
+      },
+      {
+        "candidate_count": 79,
+        "question_id": "AAPL/2006/page_131.pdf-2",
+        "split": "test",
+        "upper_outer_fence": 68.0
+      },
+      {
+        "candidate_count": 70,
+        "question_id": "MRO/2006/page_93.pdf-4",
+        "split": "test",
+        "upper_outer_fence": 68.0
+      },
+      {
+        "candidate_count": 145,
+        "question_id": "INTC/2015/page_41.pdf-2",
+        "split": "test",
+        "upper_outer_fence": 68.0
+      },
+      {
+        "candidate_count": 266,
+        "question_id": "AWK/2017/page_148.pdf-1",
+        "split": "test",
+        "upper_outer_fence": 68.0
+      },
+      {
+        "candidate_count": 237,
+        "question_id": "NKE/2009/page_43.pdf-1",
+        "split": "test",
+        "upper_outer_fence": 68.0
+      },
+      {
+        "candidate_count": 77,
+        "question_id": "HOLX/2006/page_71.pdf-1",
+        "split": "test",
+        "upper_outer_fence": 68.0
+      },
+      {
+        "candidate_count": 237,
+        "question_id": "NKE/2009/page_43.pdf-2",
+        "split": "test",
+        "upper_outer_fence": 68.0
+      },
+      {
+        "candidate_count": 70,
+        "question_id": "MRO/2006/page_93.pdf-1",
+        "split": "test",
+        "upper_outer_fence": 68.0
+      },
+      {
+        "candidate_count": 83,
+        "question_id": "HOLX/2003/page_52.pdf-1",
+        "split": "test",
+        "upper_outer_fence": 68.0
+      }
+    ]
+  },
+  "duplicate_candidate_text": {
+    "classification": "reported_source_property_not_removed",
+    "questions_with_duplicates": 978,
+    "repeated_instances_beyond_first": 16265,
+    "samples": [
+      {
+        "duplicates": {
+          ".": 29
+        },
+        "question_id": "ADI/2009/page_49.pdf-1",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "the customer-related intangibles and network location intangibles are being amortized on a straight-line basis over periods of up to 20 years .": 2,
+          "the goodwill was allocated to the company 2019s international rental and management segment .": 2
+        },
+        "question_id": "AMT/2012/page_121.pdf-1",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "the guidance will be effective for the company beginning january 1 , 2010 .": 2
+        },
+        "question_id": "IPG/2009/page_89.pdf-3",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "see fffdnote 13 .": 2
+        },
+        "question_id": "WRK/2018/page_56.pdf-3",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "morgan chase & co .": 3,
+          "notes to consolidated financial statements j.p .": 2
+        },
+        "question_id": "JPM/2003/page_100.pdf-4",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "see 201cnote 13 .": 2
+        },
+        "question_id": "WRK/2019/page_51.pdf-3",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "in accordance with the terms of the bonds , the proceeds have been used to finance the construction , reconstruction , and renovation of the company 2019s interest in certain ship manufacturing and repair facilities , or portions thereof , located in the state of mississippi .": 2
+        },
+        "question_id": "HII/2011/page_100.pdf-3",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "total customer-related trading revenue | 2013: $ 317 | 2012: $ 310": 2
+        },
+        "question_id": "PNC/2013/page_111.pdf-1",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "under armour , inc. ) .": 2
+        },
+        "question_id": "UAA/2016/page_83.pdf-3",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "all rights reserved .": 2
+        },
+        "question_id": "AAPL/2013/page_27.pdf-2",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "cib 2019s markets businesses represent both fixed income markets and equity markets .": 2,
+          "jpmorgan chase & co./2016 annual report 49 net interest income excluding cib 2019s markets businesses in addition to reviewing net interest income on a managed basis , management also reviews net interest income excluding net interest income arising from cib 2019s markets businesses to assess the performance of the firm 2019s lending , investing ( including asset-liability management ) and deposit-raising activities .": 2,
+          "management believes this exclusion provides investors and analysts with another measure by which to analyze the non- markets-related business trends of the firm and provides a comparable measure to other financial institutions that are primarily focused on lending , investing and deposit-raising activities .": 2,
+          "the data presented below are non-gaap financial measures due to the exclusion of net interest income from cib 2019s markets businesses ( 201ccib markets 201d ) .": 2,
+          "year ended december 31 , ( in millions , except rates ) 2016 2015 2014 net interest income 2013 managed basis ( a ) ( b ) $ 47292 $ 44620 $ 44619 less : cib markets net interest income ( c ) 6334 5298 6032 net interest income excluding cib markets ( a ) $ 40958 $ 39322 $ 38587 average interest-earning assets $ 2101604 $ 2088242 $ 2049093 less : average cib markets interest-earning assets ( c ) 520307 510292 522989 average interest-earning assets excluding cib markets $ 1581297 $ 1577950 $ 1526104 net interest yield on average interest-earning assets 2013 managed basis 2.25% ( 2.25 % ) 2.14% ( 2.14 % ) 2.18% ( 2.18 % ) net interest yield on average cib markets interest- earning assets ( c ) 1.22 1.04 1.15 net interest yield on average interest-earning assets excluding cib markets 2.59% ( 2.59 % ) 2.49% ( 2.49 % ) 2.53% ( 2.53 % ) ( a ) interest includes the effect of related hedges .": 2
+        },
+        "question_id": "JPM/2016/page_87.pdf-1",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "the change in fair values of the sivs 2019 liabilities reported in earnings was $ 2.6 billion for the year ended december 31 , 2008 .": 2,
+          "the company has elected the fair-value option where the interest-rate risk of such liabilities is economically hedged with derivative contracts or the proceeds are used to purchase financial assets that will also be accounted for at fair value through earnings .": 2,
+          "the election has been made to mitigate accounting mismatches and to achieve operational simplifications .": 2,
+          "the majority of these non-structured liabilities are a result of the company 2019s election of the fair-value option for liabilities associated with the citi-advised structured investment vehicles ( sivs ) , which were consolidated during the fourth quarter of 2007 .": 2,
+          "these positions are reported in short-term borrowings and long-term debt on the company 2019s consolidated balance sheet .": 2
+        },
+        "question_id": "C/2008/page_212.pdf-3",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "the fair value assigned to goodwill is primarily attributable to buyer-specific synergies expected to arise after the acquisition ( e.g. , enhanced reach of the combined organization and other synergies ) , and the assembled work force .": 2
+        },
+        "question_id": "WRK/2018/page_86.pdf-3",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "for a description of the debt transactions impacting each period , see note 8 ( long-term debt ) to the accompanying consolidated financial statements .": 2
+        },
+        "question_id": "CDW/2015/page_54.pdf-4",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "pension plans .": 2
+        },
+        "question_id": "C/2008/page_111.pdf-4",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "amended and restated 2000 long-term incentive plan , global payments inc .": 2,
+          "item 11 2014executive compensation we incorporate by reference in this item 11 the information relating to executive and director compensation contained under the headings 201cother information about the board and its committees , 201d 201ccompensation and other benefits 201d and 201creport of the compensation committee 201d from our proxy statement to be delivered in connection with our 2007 annual meeting of shareholders to be held on september 26 , 2007 .": 2,
+          "item 12 2014security ownership of certain beneficial owners andmanagement and related stockholdermatters we incorporate by reference in this item 12 the information relating to ownership of our common stock by certain persons contained under the headings 201ccommon stock ownership of management 201d and 201ccommon stock ownership by certain other persons 201d from our proxy statement to be delivered in connection with our 2007 annual meeting of shareholders to be held on september 26 , 2007 .": 2,
+          "the global payments inc .": 2,
+          "we have four compensation plans under which our equity securities are authorized for issuance .": 2
+        },
+        "question_id": "GPN/2007/page_97.pdf-2",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "and non-u.s .": 4
+        },
+        "question_id": "STT/2013/page_71.pdf-1",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "in september 2006 , the fasb issued sfas no .": 2,
+          "sfas no .": 4
+        },
+        "question_id": "ZBH/2007/page_69.pdf-3",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "the decrease was primarily a result of the u.s .": 2
+        },
+        "question_id": "IPG/2014/page_37.pdf-3",
+        "split": "train"
+      },
+      {
+        "duplicates": {
+          "gaap does not .": 2,
+          "stat .": 2
+        },
+        "question_id": "HIG/2012/page_132.pdf-2",
+        "split": "train"
+      }
+    ]
+  },
+  "fatal_issue_counts": {
+    "answer_exact_field_leakage": 0,
+    "candidate_count_mismatch": 0,
+    "candidate_provenance_mismatch": 0,
+    "duplicate_candidate_ids": 0,
+    "duplicate_question_ids": 0,
+    "empty_candidates": 0,
+    "forbidden_model_fields": 0,
+    "inconsistent_table_formatting": 0,
+    "missing_processed_questions": 0,
+    "non_deterministic_regeneration": 0,
+    "official_order_mismatch": 0,
+    "program_literal_leakage": 0,
+    "split_question_id_overlap": 0,
+    "split_report_id_overlap": 0,
+    "unexpected_processed_questions": 0,
+    "unmapped_gold_evidence": 0,
+    "zero_positive_questions": 0
+  },
+  "gold_mapping": {
+    "annotations": 14108,
+    "mapped": 14108,
+    "percentage": 100.0
+  },
+  "issue_samples": {},
+  "leakage": {
+    "answer_exact_field_occurrences": 0,
+    "detected": false,
+    "forbidden_field_occurrences": 0,
+    "natural_answer_substring_source_occurrences": 604,
+    "note": "Answer substrings naturally present in source evidence are diagnostic only; the raw answer/question duplication is a source annotation anomaly; exact source provenance proves no answer metadata was injected.",
+    "program_literal_occurrences": 0,
+    "raw_answer_equals_question_occurrences": 1
+  },
+  "manual_inspection": {
+    "eligible_splits": [
+      "train",
+      "dev"
+    ],
+    "path": "C:/Users/keeso/Documents/ChatGPT/distill/finevid-distill/outputs/manual_inspection_100.md",
+    "sample_size": 100,
+    "seed": 42,
+    "status": "complete"
+  },
+  "reproducibility": {
+    "dev": {
+      "current_sha256": "1102d2213c94acd3904842c691d1baa014d6549758a43bbf01f359b0657ff6b4",
+      "identical": true,
+      "regenerated_sha256": "1102d2213c94acd3904842c691d1baa014d6549758a43bbf01f359b0657ff6b4"
+    },
+    "test": {
+      "current_sha256": "14b7b00bced86a9a37a040f0c2fc14ab1cdef7c43f895e21ff4da54cb668b975",
+      "identical": true,
+      "regenerated_sha256": "14b7b00bced86a9a37a040f0c2fc14ab1cdef7c43f895e21ff4da54cb668b975"
+    },
+    "train": {
+      "current_sha256": "e10e6dcc32ace8a797e91855b256578dc473e894eafd413a976f92a953ddc624",
+      "identical": true,
+      "regenerated_sha256": "e10e6dcc32ace8a797e91855b256578dc473e894eafd413a976f92a953ddc624"
+    }
+  },
+  "schema_version": 1,
+  "source": {
+    "dataset": "FinQA",
+    "official_commit": "0f16e2867befa6840783e58be38c9efb9229d742",
+    "seed": 42
+  },
+  "split_overlap": {
+    "dev__test": {
+      "normalised_question_text_count": 2,
+      "normalised_question_text_samples": [
+        "what is the percent change in annual long-term debt maturities from 2018 to 2019?",
+        "what was the average net revenue between 2016 and 2017 in millions"
+      ],
+      "question_id_count": 0,
+      "report_id_count": 0
+    },
+    "train__dev": {
+      "normalised_question_text_count": 16,
+      "normalised_question_text_samples": [
+        "what is the combined number of equity compensation plans approved by security holders",
+        "what is the growth rate in net revenue in 2016?",
+        "what is the net change in net revenue during 2008?",
+        "what is the net change in net revenue during 2016?",
+        "what is the percent change in net revenue between 2006 and 2007?",
+        "what is the percent change in net revenue from 2015 to 2016?",
+        "what is the tax expense related to discontinued operations in 2012?",
+        "what is the tax expense related to discontinued operations in 2013?",
+        "what percentage of total number of shares purchased were purchased in december?",
+        "what portion of the equity compensation plan approved by security holders remains available for future issuance?",
+        "what portion of total backlog is related to ingalls segment?",
+        "what was the change in millions of weighted average common shares outstanding for diluted computations from 2015 to 2016?",
+        "what was the consumer packaging profit margin in 2006",
+        "what was the percentage change in free cash flow from 2013 to 2014?",
+        "what was the percentage change in rental expense for operating leases from 2008 to 2009?",
+        "what was the percentage change in total expense for repairs and maintenance from 2012 to 2013?"
+      ],
+      "question_id_count": 0,
+      "report_id_count": 0
+    },
+    "train__test": {
+      "normalised_question_text_count": 7,
+      "normalised_question_text_samples": [
+        "what is the percent change in receivables from the money pool between 2007 and 2008?",
+        "what percent did net revenue decrease between 2016 and 2017?",
+        "what percentage of future minimum rental payments are due in 2018?",
+        "what percentage of the estimated purchase price is developed technology and know how?",
+        "what percentage of the estimated purchase price is goodwill?",
+        "what was the difference in percentage cumulative 5-year total shareholder return on common stock fidelity national information services , inc . compared to the s&p 500 for the period ending 12/16?",
+        "what was the percentage change in the expected volatility from 2012 to 2013"
+      ],
+      "question_id_count": 0,
+      "report_id_count": 0
+    }
+  },
+  "splits": {
+    "dev": {
+      "candidate_counts": {
+        "count": 883,
+        "max": 175,
+        "mean": 30.39,
+        "median": 30.0,
+        "min": 6,
+        "p01": 8.0,
+        "p25": 23.0,
+        "p75": 36.0,
+        "p99": 72.54
+      },
+      "processed_questions": 883,
+      "raw_questions": 883,
+      "total_candidates": 26834,
+      "unique_question_ids": 883,
+      "unique_reports": 299
+    },
+    "test": {
+      "candidate_counts": {
+        "count": 1147,
+        "max": 266,
+        "mean": 31.266,
+        "median": 30.0,
+        "min": 7,
+        "p01": 8.0,
+        "p25": 24.0,
+        "p75": 35.0,
+        "p99": 86.78
+      },
+      "processed_questions": 1147,
+      "raw_questions": 1147,
+      "total_candidates": 35862,
+      "unique_question_ids": 1147,
+      "unique_reports": 380
+    },
+    "train": {
+      "candidate_counts": {
+        "count": 6251,
+        "max": 496,
+        "mean": 30.612,
+        "median": 29.0,
+        "min": 6,
+        "p01": 8.0,
+        "p25": 23.0,
+        "p75": 35.0,
+        "p99": 80.5
+      },
+      "processed_questions": 6251,
+      "raw_questions": 6251,
+      "total_candidates": 191354,
+      "unique_question_ids": 6251,
+      "unique_reports": 2110
+    }
+  },
+  "valid": true
+}
