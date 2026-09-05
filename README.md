@@ -208,9 +208,9 @@ The complete seed-42 artifact contains 6,251 rows and 49,938 candidate occurrenc
 
 ## Hard-label BGE-small training
 
-`src/training/train_hard_labels.py` trains BGE-small with normalized query and candidate embeddings. Questions retain the official BGE query instruction; candidates remain uninstructed. Within each fixed row, the target distribution assigns equal probability to every gold candidate and zero to every negative, and the objective is listwise cross-entropy over cosine scores.
+`src/training/train_hard_labels.py` trains BGE-small with normalized query and candidate embeddings. Questions retain the official BGE query instruction; candidates remain uninstructed. Within each fixed row, the target distribution assigns equal probability to every gold candidate and zero to every negative. The matched experiment uses listwise cross-entropy over cosine scores divided by student temperature **0.05**.
 
-The recommended GPU entry point is `notebooks/03_colab_hard_label.ipynb`. It rebuilds/verifies the shared rows from the Drive cache, runs focused tests, and starts or resumes:
+The current GPU entry point is `notebooks/04_colab_distilled.ipynb`, which runs both matched treatments. The earlier `03_colab_hard_label.ipynb` documents the original temperature-1 run. For the new control, run:
 
 ```powershell
 python src/training/train_hard_labels.py `
@@ -219,19 +219,87 @@ python src/training/train_hard_labels.py `
   --device cuda
 ```
 
-Each completed epoch records training loss, development MRR, development NDCG@10, learning rate, mean pre-clipping gradient norm, optimizer steps, and elapsed time. Its checkpoint contains the Sentence Transformers model, optimizer, scheduler, gradient-scaler and Python/NumPy/PyTorch RNG states. Atomic `latest.json` and `best.json` pointers make `--resume` deterministic. At completion the best model is loaded from disk and reevaluated; training fails if the reloaded development metrics change.
+The new default output is `outputs/checkpoints/hard_label_student_tau005/`, preserving `hard_label_student/`. Each completed epoch records loss components, development metrics, learning rate, mean pre-clipping gradient norm, optimizer steps, and elapsed time. Its checkpoint contains the Sentence Transformers model, optimizer, scheduler, gradient-scaler and Python/NumPy/PyTorch RNG states. Completed epoch directories are published atomically; on `--resume`, their records reconstruct the latest/best pointers and history if a disconnect interrupted those writes. Incomplete directories are preserved under an `.abandoned-*` name and never loaded. At completion the best model is loaded from disk and reevaluated; training fails if the reloaded development metrics change.
+
+Resume requires identical configuration, data hashes, and implementation hash. A legacy temperature-1 run cannot be resumed through the new trainer; retain its original artifacts and use a separate output directory for the matched experiment.
 
 Trained checkpoints can also be evaluated directly through the same command and metric implementation as every baseline:
 
 ```powershell
 python src/evaluation/evaluate.py `
   --models checkpoint `
-  --checkpoint outputs/checkpoints/hard_label_student/epochs/epoch-001/model `
+  --checkpoint outputs/checkpoints/hard_label_student_tau005/epochs/epoch-001/model `
   --checkpoint-label "Hard-label BGE-small" `
   --output outputs/hard_label_dev.json
 ```
 
 Only development evaluation is available during training. The test split remains untouched.
+
+## Original hard-label run (temperature 1)
+
+The downloaded Colab records, now tracked under `outputs/hard_label_run/`, confirm all three epochs completed on 6,251 training and 883 development questions, with 782 optimizer steps per epoch (2,346 total). Both dataset hashes match the checked-in development pool and shared training rows. Epoch 1 was selected by development MRR and its reloaded metrics match exactly. These are historical results, not the matched-temperature control for Milestone 10.
+
+| Epoch | Training loss | Development MRR | Recall@5 |
+|---|---:|---:|---:|
+| 1 (selected) | 1.532174 | 0.762280 | 0.806505 |
+| 2 | 1.409886 | 0.739014 | 0.803438 |
+| 3 | 1.381780 | 0.748393 | 0.813300 |
+
+Frozen BGE development MRR is 0.789972. The original fine-tuning run therefore reduced MRR by 0.027693. This motivates checking initial-model evaluation and using an identically scaled hard-label control; it does not establish the cause of the regression.
+
+## Milestone 10: distilled student and matched control
+
+Both treatments start independently from the pinned pretrained BGE revision, consume the same shared rows, and use the same student temperature, seed, learning rate, schedule, batching, maximum sequence length, and training budget. The temperature-1 result remains an earlier diagnostic comparison. Changing student temperature for only the distilled model would confound the supervision comparison.
+
+For each question's valid candidates:
+
+```text
+p_teacher = softmax(detached_raw_teacher_scores / 0.3)
+log_p_student = log_softmax(normalized_cosine_scores / 0.05)
+gold_target = positive_mask / sum(positive_mask)
+L_KL = sum(p_teacher * (log(p_teacher) - log_p_student))
+L_hard = -sum(gold_target * log_p_student)
+L_distilled = mean_questions(L_KL + 0.1 * L_hard)
+L_control = mean_questions(L_hard)
+```
+
+No additional temperature-squared multiplier is applied. Probability and loss calculations use FP32. Valid candidates are selected before softmax; padded positions cannot affect normalization or gradients. The teacher is detached, and non-finite valid scores, losses, or gradients stop training before the optimizer update. KL is summed along each row's candidate dimension and averaged equally across questions. The shared trainer retains question-only BGE instructions and normalized embeddings.
+
+This transfers the teacher distribution over each approximately eight-candidate training row, not the full report pool. The full report pool remains the evaluation scope. At teacher temperature 0.3, 70.7% of the 6,251 cached training rows assign over 99% probability to one candidate. The trainer logs teacher entropy and top probability alongside unweighted KL, hard CE, and weighted total loss. Keep these starting settings fixed until the pipeline is complete.
+
+Run the distilled treatment:
+
+```powershell
+python src/training/train_distilled.py `
+  --train-rows data/processed/train_rows.jsonl `
+  --dev-data data/processed/dev.jsonl `
+  --device cuda
+```
+
+Its default directory is `outputs/checkpoints/distilled_student/`. Before training, each run writes `initial_development.json` using the same evaluator as checkpoint selection. Each run writes a hashed `run_config.json`, epoch metrics and checkpoints, `training_history.json`, `latest.json`, `best.json`, and `best_reload_verification.json`. CPU diagnostics require explicit `--allow-cpu --mixed-precision none --limit-train N --limit-dev N`; their verification records are marked `diagnostic_run: true`.
+
+After both full runs finish:
+
+```powershell
+python src/evaluation/compare_students.py `
+  --hard-dir outputs/checkpoints/hard_label_student_tau005 `
+  --distilled-dir outputs/checkpoints/distilled_student `
+  --output outputs/dev_student_comparison.json
+```
+
+The comparison checks matching controls and initial metrics, complete epoch/step budgets, best-by-MRR selection, and consistent reload verification. It reports every development metric and the Distilled-minus-Hard differences. Diagnostic runs are rejected unless explicitly allowed; they are never labelled as full experiments. This is a development comparison, not final test evidence or a significance claim.
+
+### Running in Colab without publishing local changes
+
+Build a portable source bundle from the repository root:
+
+```powershell
+python scripts/package_colab.py --output outputs/finevid_milestone10_source.zip
+```
+
+Open `notebooks/04_colab_distilled.ipynb` in Colab, select a GPU runtime, and run its cells in order. Upload that bundle when prompted. The notebook verifies its manifest, installs the bundled source, tests it, rebuilds shared rows from the existing Drive teacher cache, trains both treatments, validates the comparison, and downloads a small review ZIP. The bundle contains source and train/development inputs; it omits credentials, raw data, teacher caches, model checkpoints, and the test ranking file. Existing teacher caches must remain under `MyDrive/FinEvid-Distill/teacher_scores/`.
+
+The full matched GPU runs and their measured performance remain pending until the notebook produces verified results. Passing unit tests or saving a small CPU diagnostic checkpoint does not complete that experimental milestone.
 
 ## Milestone status
 
@@ -244,4 +312,5 @@ Only development evaluation is available during training. The test split remains
 - [x] Milestone 6: Random, BM25, and frozen BGE baselines are evaluated on all 883 development questions.
 - [x] Milestone 7: complete training/development teacher caches validate, and Qwen development MRR 0.804112 exceeds frozen BGE MRR 0.789972.
 - [x] Milestone 8: one deterministic 6,251-row artifact retains every gold fact and exactly aligns candidate, label, text, and teacher-score order.
-- [ ] Milestone 9: the tested hard-label trainer, resumable checkpoint format, shared evaluator integration, and Colab notebook are implemented; the full GPU training run is pending.
+- [x] Milestone 9: the original temperature-1 hard-label GPU run completed all three epochs; its best checkpoint was reloaded and verified.
+- [ ] Milestone 10: distilled training, matched-temperature control, safety checks, checkpoint recovery, and Colab workflow are implemented; full matched GPU runs and their comparison remain pending.

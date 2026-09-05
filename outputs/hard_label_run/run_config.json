@@ -1,0 +1,21 @@
+{
+  "dev_data_sha256": "1102d2213c94acd3904842c691d1baa014d6549758a43bbf01f359b0657ff6b4",
+  "epochs": 3,
+  "learning_rate": 2e-05,
+  "limit_dev": null,
+  "limit_train": null,
+  "max_gradient_norm": 1.0,
+  "max_sequence_length": 512,
+  "mixed_precision": "fp16",
+  "model_id": "BAAI/bge-small-en-v1.5",
+  "model_revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+  "normalize_embeddings": true,
+  "objective": "listwise_cross_entropy",
+  "query_instruction": "Represent this sentence for searching relevant passages: ",
+  "questions_per_batch": 8,
+  "seed": 42,
+  "target": "equal_probability_over_all_gold_candidates",
+  "train_rows_sha256": "df56334db862a9e45504db7a1b0846c394e3e7fc9c1414dd89c101efa05a847e",
+  "warmup_ratio": 0.1,
+  "weight_decay": 0.01
+}

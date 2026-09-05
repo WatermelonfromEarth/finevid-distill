@@ -43,6 +43,10 @@ def test_beginner_config_locks_experiment_contract() -> None:
     ]
     assert config["models"]["teacher"]["cached_score_type"] == "raw_logit_difference"
     assert config["models"]["teacher"]["temperature_applied_when_cached"] is False
+    assert config["training"]["student_temperature"] == 0.05
+    assert config["training"]["teacher_temperature"] == 0.3
+    assert config["training"]["distillation_hard_label_weight"] == 0.1
+    assert config["fairness"]["same_student_temperature"] is True
 
 
 def test_beginner_config_contains_all_required_comparisons() -> None:
@@ -66,4 +70,20 @@ def test_validator_rejects_scope_drift() -> None:
     config["experiment"]["seed"] = 7
 
     with pytest.raises(ConfigError, match="experiment.seed"):
+        validate_beginner_config(config)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("student_temperature", 0.1),
+        ("teacher_temperature", 1.0),
+        ("distillation_hard_label_weight", 0.2),
+    ],
+)
+def test_validator_rejects_milestone_10_loss_drift(field: str, value: float) -> None:
+    config = load_config(CONFIG_PATH)
+    config["training"][field] = value
+
+    with pytest.raises(ConfigError, match=field):
         validate_beginner_config(config)

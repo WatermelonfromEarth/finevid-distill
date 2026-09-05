@@ -9,4 +9,8 @@ Milestone 6 adds `dev_baselines.json`, containing complete development metrics f
 
 Milestone 9 writes `checkpoints/hard_label_student/`. Each immutable epoch directory contains the saved model, optimizer/scheduler/scaler and RNG state, plus epoch metrics. `latest.json` and `best.json` point to resumable and selected checkpoints, `training_history.json` tracks all requested signals, and `best_reload_verification.json` proves the selected model was reloaded and reevaluated successfully. These run artifacts remain ignored.
 
+The small JSON records from the completed original temperature-1 hard-label run are tracked under `hard_label_run/`. They preserve its configuration, full three-epoch history, latest/best pointers, and reload verification. Model weights and optimizer state remain in external artifact storage.
+
+Milestone 10 writes the matched control to `checkpoints/hard_label_student_tau005/`, the treatment to `checkpoints/distilled_student/`, and their validated development comparison to `dev_student_comparison.json`. Commit the small comparison and run metadata only after both full runs finish; keep checkpoint weights outside ordinary Git history.
+
 Regenerate both with `python src/data/validate_dataset.py --seed 42`. Run-specific metrics, checkpoints, logs, and final experiment tables remain ignored.

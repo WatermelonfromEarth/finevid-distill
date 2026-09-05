@@ -1,0 +1,12 @@
+{
+  "checkpoint": "epochs/epoch-001",
+  "completed_epoch": 1,
+  "development_metrics": {
+    "complete_recall_at_5": 0.6998867497168743,
+    "mrr": 0.7622796108731422,
+    "ndcg_at_10": 0.7678133336276053,
+    "recall_at_1": 0.4593660680580273,
+    "recall_at_5": 0.8065051501914469
+  },
+  "reload_verified": true
+}

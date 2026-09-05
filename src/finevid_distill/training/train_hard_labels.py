@@ -8,7 +8,9 @@ import hashlib
 import json
 import math
 import random
+import re
 import time
+import uuid
 from collections.abc import Mapping, Sequence
 from contextlib import nullcontext
 from pathlib import Path
@@ -18,6 +20,13 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from finevid_distill.config import load_config
+from finevid_distill.training.losses import (
+    DEFAULT_STUDENT_TEMPERATURE,
+    DEFAULT_TEACHER_TEMPERATURE,
+    DEFAULT_HARD_LABEL_WEIGHT,
+    ranking_loss_components,
+)
 from finevid_distill.data.build_training_rows import (
     EXPECTED_SEED,
     TARGET_CANDIDATES,
@@ -44,6 +53,10 @@ DEFAULT_WEIGHT_DECAY = 0.01
 DEFAULT_WARMUP_RATIO = 0.1
 DEFAULT_MAX_GRADIENT_NORM = 1.0
 DEFAULT_MAX_SEQUENCE_LENGTH = 512
+EXPECTED_TRAIN_ROWS_SHA256 = "df56334db862a9e45504db7a1b0846c394e3e7fc9c1414dd89c101efa05a847e"
+EXPECTED_DEV_DATA_SHA256 = "1102d2213c94acd3904842c691d1baa014d6549758a43bbf01f359b0657ff6b4"
+EXPECTED_TRAINING_QUESTIONS = 6251
+EXPECTED_DEVELOPMENT_QUESTIONS = 883
 
 
 def project_root() -> Path:
@@ -55,6 +68,15 @@ def sha256_file(path: Path) -> str:
     with path.open("rb") as input_file:
         for block in iter(lambda: input_file.read(1024 * 1024), b""):
             digest.update(block)
+    return digest.hexdigest()
+
+
+def training_code_sha256() -> str:
+    package = Path(__file__).resolve().parents[1]
+    digest = hashlib.sha256()
+    for path in sorted(package.rglob("*.py")):
+        digest.update(path.relative_to(package).as_posix().encode("utf-8"))
+        digest.update(path.read_bytes())
     return digest.hexdigest()
 
 
@@ -132,23 +154,13 @@ def equal_positive_target(
 def listwise_cross_entropy(
     score_rows: Sequence[torch.Tensor],
     positive_masks: Sequence[Sequence[int] | torch.Tensor],
+    *,
+    student_temperature: float = 1.0,
 ) -> torch.Tensor:
-    """Mean cross-entropy from listwise scores to equal-mass gold targets."""
-    if not score_rows or len(score_rows) != len(positive_masks):
-        raise ValueError("Scores and positive masks must contain the same non-zero rows.")
-    losses: list[torch.Tensor] = []
-    for scores, positive_mask in zip(score_rows, positive_masks, strict=True):
-        if scores.ndim != 1 or scores.numel() == 0:
-            raise ValueError("Every score row must be a non-empty vector.")
-        target = equal_positive_target(
-            positive_mask,
-            device=scores.device,
-            dtype=scores.dtype,
-        )
-        if target.shape != scores.shape:
-            raise ValueError("A score row and its target mask have different lengths.")
-        losses.append(-(target * F.log_softmax(scores, dim=0)).sum())
-    return torch.stack(losses).mean()
+    """Compatibility helper; training explicitly supplies the shared temperature."""
+    return ranking_loss_components(
+        score_rows, positive_masks, student_temperature=student_temperature
+    )["hard_loss"]
 
 
 def _move_features(features: Mapping[str, Any], device: torch.device) -> dict[str, Any]:
@@ -174,16 +186,16 @@ def encode_with_grad(
     output = model(features)
     if "sentence_embedding" not in output:
         raise ValueError("Student model did not return sentence embeddings.")
-    return F.normalize(output["sentence_embedding"], p=2, dim=1)
+    return F.normalize(output["sentence_embedding"].float(), p=2, dim=1)
 
 
-def training_batch_loss(
+def training_score_rows(
     model: Any,
     rows: Sequence[Mapping[str, Any]],
     *,
     device: torch.device,
     query_instruction: str = BGE_QUERY_INSTRUCTION,
-) -> torch.Tensor:
+) -> list[torch.Tensor]:
     if not rows:
         raise ValueError("Cannot train on an empty batch.")
     questions = [query_instruction + str(row["question"]) for row in rows]
@@ -204,10 +216,48 @@ def training_batch_loss(
         offset += candidate_count
     if offset != len(candidate_embeddings):
         raise ValueError("Candidate embeddings could not be partitioned by question.")
-    return listwise_cross_entropy(
-        score_rows,
-        [row["positive_mask"] for row in rows],
+    return score_rows
+
+
+def training_batch_losses(
+    model: Any,
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    device: torch.device,
+    treatment: str = "hard_label",
+    student_temperature: float = DEFAULT_STUDENT_TEMPERATURE,
+    teacher_temperature: float = DEFAULT_TEACHER_TEMPERATURE,
+    hard_label_weight: float = DEFAULT_HARD_LABEL_WEIGHT,
+    query_instruction: str = BGE_QUERY_INSTRUCTION,
+) -> dict[str, torch.Tensor]:
+    if treatment not in ("hard_label", "distilled"):
+        raise ValueError(f"Unknown student treatment: {treatment}")
+    scores = training_score_rows(
+        model, rows, device=device, query_instruction=query_instruction
     )
+    return ranking_loss_components(
+        scores,
+        [row["positive_mask"] for row in rows],
+        teacher_score_rows=(
+            [row["teacher_scores"] for row in rows] if treatment == "distilled" else None
+        ),
+        student_temperature=student_temperature,
+        teacher_temperature=teacher_temperature,
+        hard_label_weight=hard_label_weight,
+    )
+
+
+def training_batch_loss(
+    model: Any,
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    device: torch.device,
+    query_instruction: str = BGE_QUERY_INSTRUCTION,
+) -> torch.Tensor:
+    """Hard-label compatibility entry point using the matched student temperature."""
+    return training_batch_losses(
+        model, rows, device=device, query_instruction=query_instruction
+    )["total_loss"]
 
 
 def epoch_batches(
@@ -242,11 +292,16 @@ def train_one_epoch(
     scaler: Any | None = None,
     use_fp16: bool = False,
     show_progress: bool = True,
+    treatment: str = "hard_label",
+    student_temperature: float = DEFAULT_STUDENT_TEMPERATURE,
+    teacher_temperature: float = DEFAULT_TEACHER_TEMPERATURE,
+    hard_label_weight: float = DEFAULT_HARD_LABEL_WEIGHT,
 ) -> dict[str, float | int]:
     model.train()
     total_loss = 0.0
     total_questions = 0
     gradient_norms: list[float] = []
+    component_totals: dict[str, float] = {}
     batches = epoch_batches(
         rows,
         questions_per_batch=questions_per_batch,
@@ -261,7 +316,13 @@ def train_one_epoch(
             else nullcontext()
         )
         with context:
-            loss = training_batch_loss(model, batch, device=device)
+            components = training_batch_losses(
+                model, batch, device=device, treatment=treatment,
+                student_temperature=student_temperature,
+                teacher_temperature=teacher_temperature,
+                hard_label_weight=hard_label_weight,
+            )
+            loss = components["total_loss"]
         if scaler is not None:
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -279,6 +340,10 @@ def train_one_epoch(
             optimizer.step()
         scheduler.step()
 
+        for name, value in components.items():
+            component_totals[name] = component_totals.get(name, 0.0) + float(
+                value.detach().cpu()
+            ) * len(batch)
         total_loss += float(loss.detach().cpu()) * len(batch)
         total_questions += len(batch)
         gradient_norms.append(float(gradient_norm.detach().cpu()))
@@ -293,6 +358,7 @@ def train_one_epoch(
                 flush=True,
             )
     return {
+        **{name: value / total_questions for name, value in component_totals.items()},
         "training_loss": total_loss / total_questions,
         "gradient_norm": sum(gradient_norms) / len(gradient_norms),
         "optimizer_steps": len(batches),
@@ -349,9 +415,8 @@ def save_epoch_checkpoint(
         raise FileExistsError(f"Refusing to overwrite checkpoint: {checkpoint}")
     temporary = epochs_dir / f".epoch-{completed_epoch:03d}.incomplete"
     if temporary.exists():
-        raise FileExistsError(
-            f"Incomplete checkpoint exists; inspect it before retrying: {temporary}"
-        )
+        # Preserve a disconnected writer's partial files, but never load them.
+        temporary.rename(epochs_dir / f".abandoned-{completed_epoch:03d}-{uuid.uuid4().hex}")
     temporary.mkdir()
     model.save_pretrained(temporary / "model")
     trainer_state = {
@@ -368,6 +433,40 @@ def save_epoch_checkpoint(
     write_json(dict(epoch_metrics), temporary / "epoch_metrics.json")
     temporary.replace(checkpoint)
     return checkpoint
+
+
+def recover_checkpoint_index(output_dir: Path) -> tuple[dict | None, dict | None, list[dict]]:
+    """Rebuild disposable pointers from atomically published epoch directories.
+
+    A disconnect after the epoch rename but before latest/history/best writes
+    must not skip training or lose the best epoch. Partial directories are ignored.
+    """
+    epochs_dir = output_dir / "epochs"
+    paths = sorted(
+        (path for path in epochs_dir.iterdir()
+         if path.is_dir() and re.fullmatch(r"epoch-\d{3,}", path.name)),
+        key=lambda path: int(path.name.split("-")[1]),
+    ) if epochs_dir.exists() else []
+    latest, best, history, global_step = None, None, [], 0
+    for expected_epoch, path in enumerate(paths, 1):
+        record = json.loads((path / "epoch_metrics.json").read_text(encoding="utf-8"))
+        if record["epoch"] != expected_epoch or path.name != f"epoch-{expected_epoch:03d}":
+            raise ValueError("Committed checkpoints must contain consecutive completed epochs.")
+        if not (path / "trainer_state.pt").is_file() or not (path / "model").is_dir():
+            raise ValueError(f"Incomplete committed checkpoint: {path}")
+        if not all(math.isfinite(value) for value in record["development_metrics"].values()):
+            raise ValueError("Committed development metrics must be finite.")
+        history.append(record)
+        global_step += int(record["optimizer_steps"])
+        latest = {"checkpoint": path.relative_to(output_dir).as_posix(),
+                  "completed_epoch": expected_epoch, "global_step": global_step}
+        if best is None or record["development_metrics"]["mrr"] > best["development_metrics"]["mrr"]:
+            best = {**latest, "development_metrics": record["development_metrics"]}
+    if latest is not None:
+        write_json(latest, output_dir / "latest.json")
+        write_json(best, output_dir / "best.json")
+        write_json({"epochs": history}, output_dir / "training_history.json")
+    return latest, best, history
 
 
 def load_trainer_state(
@@ -419,6 +518,7 @@ def evaluate_student(
     batch_size: int,
     show_progress: bool,
 ) -> dict[str, float]:
+    model.eval()
     ranker = BGERanker(
         device=device,
         batch_size=batch_size,
@@ -429,9 +529,20 @@ def evaluate_student(
     return evaluate_ranker(dev_records, ranker)
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def parse_args(
+    argv: list[str] | None = None, *, treatment: str = "hard_label"
+) -> argparse.Namespace:
     root = project_root()
-    parser = argparse.ArgumentParser(description=__doc__)
+    if treatment not in ("hard_label", "distilled"):
+        raise ValueError(f"Unknown student treatment: {treatment}")
+    config_parser = argparse.ArgumentParser(add_help=False)
+    config_parser.add_argument("--config", type=Path, default=root / "configs/beginner.yaml")
+    config_args, _ = config_parser.parse_known_args(argv)
+    defaults = load_config(config_args.config)["training"]
+    parser = argparse.ArgumentParser(
+        description=f"Train the {treatment} BGE-small treatment.", parents=[config_parser]
+    )
+    parser.set_defaults(treatment=treatment)
     parser.add_argument(
         "--train-rows",
         type=Path,
@@ -445,27 +556,32 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=root / "outputs" / "checkpoints" / "hard_label_student",
+        default=root / "outputs" / "checkpoints" / (
+            "distilled_student" if treatment == "distilled" else "hard_label_student_tau005"
+        ),
     )
     parser.add_argument("--model", default=BGE_MODEL_ID)
     parser.add_argument("--revision", default=BGE_MODEL_REVISION)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, default=EXPECTED_SEED)
-    parser.add_argument("--epochs", type=int, default=DEFAULT_EPOCHS)
+    parser.add_argument("--epochs", type=int, default=defaults["epochs"])
     parser.add_argument(
-        "--questions-per-batch", type=int, default=DEFAULT_QUESTIONS_PER_BATCH
+        "--questions-per-batch", type=int, default=defaults["questions_per_batch"]
     )
-    parser.add_argument("--learning-rate", type=float, default=DEFAULT_LEARNING_RATE)
-    parser.add_argument("--weight-decay", type=float, default=DEFAULT_WEIGHT_DECAY)
-    parser.add_argument("--warmup-ratio", type=float, default=DEFAULT_WARMUP_RATIO)
+    parser.add_argument("--learning-rate", type=float, default=defaults["learning_rate"])
+    parser.add_argument("--weight-decay", type=float, default=defaults["weight_decay"])
+    parser.add_argument("--warmup-ratio", type=float, default=defaults["warmup_ratio"])
     parser.add_argument(
-        "--max-gradient-norm", type=float, default=DEFAULT_MAX_GRADIENT_NORM
+        "--max-gradient-norm", type=float, default=defaults["max_gradient_norm"]
     )
     parser.add_argument(
-        "--max-sequence-length", type=int, default=DEFAULT_MAX_SEQUENCE_LENGTH
+        "--max-sequence-length", type=int, default=defaults["max_sequence_length"]
     )
     parser.add_argument("--evaluation-batch-size", type=int, default=64)
-    parser.add_argument("--mixed-precision", choices=("none", "fp16"), default="fp16")
+    parser.add_argument("--mixed-precision", choices=("none", "fp16"), default=defaults["mixed_precision"])
+    parser.add_argument("--student-temperature", type=float, default=defaults["student_temperature"])
+    parser.add_argument("--teacher-temperature", type=float, default=defaults["teacher_temperature"])
+    parser.add_argument("--hard-label-weight", type=float, default=defaults["distillation_hard_label_weight"])
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--allow-cpu", action="store_true")
     parser.add_argument("--local-files-only", action="store_true")
@@ -478,6 +594,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def _validate_args(args: argparse.Namespace) -> None:
     if args.seed != EXPECTED_SEED:
         raise ValueError(f"The beginner experiment seed must be {EXPECTED_SEED}.")
+    if args.model != BGE_MODEL_ID or args.revision != BGE_MODEL_REVISION:
+        raise ValueError("Both student treatments must start from the pinned pretrained BGE model.")
     if args.dev_data.name != "dev.jsonl":
         raise ValueError("Only the development split may be used during training.")
     positive_values = {
@@ -487,11 +605,19 @@ def _validate_args(args: argparse.Namespace) -> None:
         "max_gradient_norm": args.max_gradient_norm,
         "max_sequence_length": args.max_sequence_length,
         "evaluation_batch_size": args.evaluation_batch_size,
+        "student_temperature": args.student_temperature,
+        "teacher_temperature": args.teacher_temperature,
     }
     for name, value in positive_values.items():
-        if value <= 0:
-            raise ValueError(f"{name} must be positive.")
-    if args.weight_decay < 0 or not 0 <= args.warmup_ratio < 1:
+        if not math.isfinite(value) or value <= 0:
+            raise ValueError(f"{name} must be finite and positive.")
+    for name in ("limit_train", "limit_dev"):
+        value = getattr(args, name)
+        if value is not None and value <= 0:
+            raise ValueError(f"{name} must be positive when supplied.")
+    if not math.isfinite(args.hard_label_weight) or args.hard_label_weight < 0:
+        raise ValueError("hard_label_weight must be finite and non-negative.")
+    if not math.isfinite(args.weight_decay) or args.weight_decay < 0 or not 0 <= args.warmup_ratio < 1:
         raise ValueError("weight_decay must be non-negative and warmup_ratio in [0, 1).")
 
 
@@ -502,6 +628,9 @@ def _run_configuration(
     dev_data_hash: str,
 ) -> dict[str, Any]:
     return {
+        "schema_version": 2,
+        "training_code_sha256": training_code_sha256(),
+        "treatment": args.treatment,
         "model_id": args.model,
         "model_revision": args.revision,
         "seed": args.seed,
@@ -513,8 +642,20 @@ def _run_configuration(
         "max_gradient_norm": args.max_gradient_norm,
         "max_sequence_length": args.max_sequence_length,
         "mixed_precision": args.mixed_precision,
-        "objective": "listwise_cross_entropy",
-        "target": "equal_probability_over_all_gold_candidates",
+        "objective": (
+            "teacher_to_student_kl_plus_weighted_hard_ce"
+            if args.treatment == "distilled" else "listwise_cross_entropy"
+        ),
+        "target": (
+            "qwen_teacher_score_distribution_with_gold_anchor"
+            if args.treatment == "distilled" else "equal_probability_over_all_gold_candidates"
+        ),
+        "student_temperature": args.student_temperature,
+        "teacher_temperature": args.teacher_temperature if args.treatment == "distilled" else None,
+        "hard_label_weight": args.hard_label_weight if args.treatment == "distilled" else 1.0,
+        "loss_reduction": "sum_valid_candidates_then_mean_questions",
+        "temperature_squared_multiplier": False,
+        "evaluation_batch_size": args.evaluation_batch_size,
         "query_instruction": BGE_QUERY_INSTRUCTION,
         "normalize_embeddings": True,
         "train_rows_sha256": train_rows_hash,
@@ -524,14 +665,16 @@ def _run_configuration(
     }
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
+def main(argv: list[str] | None = None, *, treatment: str = "hard_label") -> int:
+    args = parse_args(argv, treatment=treatment)
     _validate_args(args)
     device_name = resolve_device(args.device)
-    if device_name == "cpu" and not args.allow_cpu:
+    if device_name == "cpu" and (
+        not args.allow_cpu or args.limit_train is None or args.limit_dev is None
+    ):
         raise RuntimeError(
             "Full BGE training requires a GPU. Use the Colab training notebook, or "
-            "pass --allow-cpu only for a small --limit-train diagnostic."
+            "pass --allow-cpu with --limit-train and --limit-dev for a small diagnostic."
         )
     if args.mixed_precision == "fp16" and device_name != "cuda":
         raise ValueError("fp16 training requires a CUDA device.")
@@ -550,13 +693,46 @@ def main(argv: list[str] | None = None) -> int:
         train_rows_hash=sha256_file(args.train_rows),
         dev_data_hash=sha256_file(args.dev_data),
     )
+    run_config.update(training_question_count=len(train_rows), development_question_count=len(dev_records))
+    diagnostic_run = args.limit_train is not None or args.limit_dev is not None
+    if not diagnostic_run:
+        expected_full_run = {
+            "train_rows_sha256": EXPECTED_TRAIN_ROWS_SHA256,
+            "dev_data_sha256": EXPECTED_DEV_DATA_SHA256,
+            "training_question_count": EXPECTED_TRAINING_QUESTIONS,
+            "development_question_count": EXPECTED_DEVELOPMENT_QUESTIONS,
+        }
+        mismatches = {
+            key: (run_config.get(key), expected)
+            for key, expected in expected_full_run.items()
+            if run_config.get(key) != expected
+        }
+        if mismatches:
+            raise ValueError(
+                f"Full experiment inputs do not match the fixed artifacts: {mismatches}"
+            )
     if args.resume:
-        if not latest_path.exists() or not run_config_path.exists():
-            raise FileNotFoundError("No resumable hard-label checkpoint was found.")
+        if not run_config_path.exists():
+            raise FileNotFoundError("No resumable student checkpoint was found.")
         stored_config = json.loads(run_config_path.read_text(encoding="utf-8"))
         if stored_config != run_config:
-            raise ValueError("Resume configuration differs from the original run.")
-        latest = json.loads(latest_path.read_text(encoding="utf-8"))
+            raise ValueError(
+                "Resume configuration differs from the original run. Legacy temperature-1 "
+                "artifacts are preserved; use a new output directory for the matched experiment."
+            )
+        latest, _, history = recover_checkpoint_index(output_dir)
+        if latest is not None and latest["completed_epoch"] > args.epochs:
+            raise ValueError("Saved run contains more epochs than the configured budget.")
+    else:
+        if latest_path.exists() or run_config_path.exists() or (output_dir / "epochs").exists():
+            raise FileExistsError(
+                f"Output already contains a run; use --resume or a new directory: {output_dir}"
+            )
+        output_dir.mkdir(parents=True, exist_ok=True)
+        write_json(run_config, run_config_path)
+        latest, history = None, []
+
+    if latest is not None:
         resume_checkpoint = output_dir / latest["checkpoint"]
         model = load_student_model(
             resume_checkpoint / "model",
@@ -565,16 +741,9 @@ def main(argv: list[str] | None = None) -> int:
             max_sequence_length=args.max_sequence_length,
             local_files_only=True,
         )
-        history = json.loads(history_path.read_text(encoding="utf-8"))["epochs"]
         start_epoch = int(latest["completed_epoch"]) + 1
         global_step = int(latest["global_step"])
     else:
-        if latest_path.exists() or run_config_path.exists():
-            raise FileExistsError(
-                f"Output already contains a run; use --resume or a new directory: {output_dir}"
-            )
-        output_dir.mkdir(parents=True, exist_ok=True)
-        write_json(run_config, run_config_path)
         model = load_student_model(
             args.model,
             revision=args.revision,
@@ -587,6 +756,19 @@ def main(argv: list[str] | None = None) -> int:
         global_step = 0
 
     model.to(torch.device(device_name))
+    if latest is None:
+        initial_rng = capture_rng_state()
+        initial_metrics = evaluate_student(
+            model, dev_records, device=device_name, batch_size=args.evaluation_batch_size,
+            show_progress=not args.no_progress,
+        )
+        restore_rng_state(initial_rng)
+        write_json(
+            {"development_metrics": initial_metrics, "question_count": len(dev_records),
+             "dev_data_sha256": run_config["dev_data_sha256"]},
+            output_dir / "initial_development.json",
+        )
+        print(f"Initial pretrained development MRR: {initial_metrics['mrr']:.6f}", flush=True)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.learning_rate,
@@ -606,7 +788,7 @@ def main(argv: list[str] | None = None) -> int:
     use_fp16 = args.mixed_precision == "fp16"
     scaler = torch.amp.GradScaler("cuda", enabled=True) if use_fp16 else None
 
-    if args.resume:
+    if latest is not None:
         state = load_trainer_state(
             resume_checkpoint,
             optimizer,
@@ -615,6 +797,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         if int(state["completed_epoch"]) + 1 != start_epoch:
             raise ValueError("Latest checkpoint and pointer disagree about the epoch.")
+        if int(state["global_step"]) != global_step:
+            raise ValueError("Checkpoint optimizer steps and epoch history disagree.")
 
     best_path = output_dir / "best.json"
     if best_path.exists():
@@ -639,6 +823,10 @@ def main(argv: list[str] | None = None) -> int:
             scaler=scaler,
             use_fp16=use_fp16,
             show_progress=not args.no_progress,
+            treatment=args.treatment,
+            student_temperature=args.student_temperature,
+            teacher_temperature=args.teacher_temperature,
+            hard_label_weight=args.hard_label_weight,
         )
         global_step += int(train_metrics["optimizer_steps"])
         development_metrics = evaluate_student(
@@ -719,10 +907,16 @@ def main(argv: list[str] | None = None) -> int:
         "completed_epoch": best["completed_epoch"],
         "development_metrics": reloaded_metrics,
         "reload_verified": True,
+        "treatment": args.treatment,
+        "question_count": len(dev_records),
+        "train_rows_sha256": run_config["train_rows_sha256"],
+        "dev_data_sha256": run_config["dev_data_sha256"],
+        "diagnostic_run": diagnostic_run,
     }
     write_json(verification, output_dir / "best_reload_verification.json")
     print()
-    print(format_markdown_table({"Hard-label BGE-small": reloaded_metrics}))
+    label = "Distilled BGE-small" if args.treatment == "distilled" else "Hard-label BGE-small"
+    print(format_markdown_table({label: reloaded_metrics}))
     print(f"\nBest checkpoint reloaded successfully: {best_checkpoint}")
     return 0
 

@@ -77,6 +77,7 @@ fairness:
   same_training_budget: true
   same_evaluation_candidates: true
   same_evaluation_code: true
+  same_student_temperature: true
 
 runtime:
   device: auto
@@ -92,3 +93,9 @@ training:
   mixed_precision: fp16
   hard_label_objective: listwise_cross_entropy
   hard_label_target: equal_probability_over_all_gold_candidates
+  student_temperature: 0.05
+  teacher_temperature: 0.3
+  distillation_hard_label_weight: 0.1
+  distilled_objective: teacher_to_student_kl_plus_weighted_hard_ce
+  loss_reduction: sum_valid_candidates_then_mean_questions
+  temperature_squared_multiplier: false

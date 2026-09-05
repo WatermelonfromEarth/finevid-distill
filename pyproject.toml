@@ -35,6 +35,8 @@ finevid-evaluate = "finevid_distill.evaluation.evaluate:main"
 finevid-cache-teacher = "finevid_distill.data.cache_teacher_scores:main"
 finevid-build-training-rows = "finevid_distill.data.build_training_rows:main"
 finevid-train-hard-labels = "finevid_distill.training.train_hard_labels:main"
+finevid-train-distilled = "finevid_distill.training.train_distilled:main"
+finevid-compare-students = "finevid_distill.evaluation.compare_students:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import math
 from typing import Any, Mapping
 
 import yaml
@@ -102,6 +103,19 @@ def validate_beginner_config(config: Mapping[str, Any]) -> None:
             training.get("hard_label_target"),
             "equal_probability_over_all_gold_candidates",
         ),
+        "distilled objective": (
+            training.get("distilled_objective"),
+            "teacher_to_student_kl_plus_weighted_hard_ce",
+        ),
+        "loss reduction": (
+            training.get("loss_reduction"), "sum_valid_candidates_then_mean_questions",
+        ),
+        "temperature-squared multiplier": (
+            training.get("temperature_squared_multiplier"), False,
+        ),
+        "matched student temperature": (
+            config.get("fairness", {}).get("same_student_temperature"), True,
+        ),
         "evaluation.primary_metric": (evaluation.get("primary_metric"), "mrr"),
         "split_policy.allow_test_tuning": (
             split_policy.get("allow_test_tuning"),
@@ -112,6 +126,20 @@ def validate_beginner_config(config: Mapping[str, Any]) -> None:
     for label, (actual, expected) in checks.items():
         if actual != expected:
             raise ConfigError(f"{label} must be {expected!r}; got {actual!r}.")
+
+    fixed_loss_values = {
+        "student_temperature": 0.05,
+        "teacher_temperature": 0.3,
+        "distillation_hard_label_weight": 0.1,
+    }
+    for name, expected in fixed_loss_values.items():
+        value = training.get(name)
+        if not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ConfigError(f"training.{name} must be finite.")
+        if value != expected:
+            raise ConfigError(
+                f"training.{name} must be {expected!r}; got {value!r}."
+            )
 
     comparison_ids = [comparison.get("id") for comparison in comparisons]
     if comparison_ids != EXPECTED_COMPARISONS:
