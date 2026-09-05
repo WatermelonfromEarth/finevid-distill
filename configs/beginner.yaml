@@ -99,3 +99,12 @@ training:
   distilled_objective: teacher_to_student_kl_plus_weighted_hard_ce
   loss_reduction: sum_valid_candidates_then_mean_questions
   temperature_squared_multiplier: false
+
+final_evaluation:
+  selection_file: outputs/final_selection.json
+  test_data_sha256: 14b7b00bced86a9a37a040f0c2fc14ab1cdef7c43f895e21ff4da54cb668b975
+  test_question_count: 1147
+  teacher_quality_retained: distilled_ndcg_at_10_divided_by_teacher_ndcg_at_10
+  benchmark_candidates: 100
+  benchmark_reported_statistic: median
+  benchmark_precompute_bge_candidates: true

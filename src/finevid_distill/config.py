@@ -52,6 +52,7 @@ def validate_beginner_config(config: Mapping[str, Any]) -> None:
         split_policy = config["split_policy"]
         comparisons = config["comparisons"]
         training = config["training"]
+        final_evaluation = config["final_evaluation"]
     except KeyError as error:
         raise ConfigError(f"Missing required section: {error.args[0]}") from error
 
@@ -120,6 +121,23 @@ def validate_beginner_config(config: Mapping[str, Any]) -> None:
         "split_policy.allow_test_tuning": (
             split_policy.get("allow_test_tuning"),
             False,
+        ),
+        "final test SHA-256": (
+            final_evaluation.get("test_data_sha256"),
+            "14b7b00bced86a9a37a040f0c2fc14ab1cdef7c43f895e21ff4da54cb668b975",
+        ),
+        "final test question count": (
+            final_evaluation.get("test_question_count"), 1147,
+        ),
+        "teacher quality retained definition": (
+            final_evaluation.get("teacher_quality_retained"),
+            "distilled_ndcg_at_10_divided_by_teacher_ndcg_at_10",
+        ),
+        "benchmark candidate count": (
+            final_evaluation.get("benchmark_candidates"), 100,
+        ),
+        "BGE candidate precomputation": (
+            final_evaluation.get("benchmark_precompute_bge_candidates"), True,
         ),
     }
 

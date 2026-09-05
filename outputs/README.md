@@ -13,4 +13,6 @@ The small JSON records from the completed original temperature-1 hard-label run 
 
 Milestone 10 writes the matched control to `checkpoints/hard_label_student_tau005/`, the treatment to `checkpoints/distilled_student/`, and their validated development comparison to `dev_student_comparison.json`. Commit the small comparison and run metadata only after both full runs finish; keep checkpoint weights outside ordinary Git history.
 
+`final_selection.json` is the tracked pre-test freeze record. It selects hard-label epoch 3 and distilled epoch 2 from complete development runs and locks the public-test hash before evaluation. Milestone 11 writes `final_test_results.json`; Milestone 12 writes `efficiency_results.json`. The measured result files stay in persistent artifact storage until their completed review records are imported.
+
 Regenerate both with `python src/data/validate_dataset.py --seed 42`. Run-specific metrics, checkpoints, logs, and final experiment tables remain ignored.

@@ -47,6 +47,9 @@ def test_beginner_config_locks_experiment_contract() -> None:
     assert config["training"]["teacher_temperature"] == 0.3
     assert config["training"]["distillation_hard_label_weight"] == 0.1
     assert config["fairness"]["same_student_temperature"] is True
+    assert config["final_evaluation"]["test_question_count"] == 1147
+    assert config["final_evaluation"]["benchmark_candidates"] == 100
+    assert config["final_evaluation"]["benchmark_precompute_bge_candidates"] is True
 
 
 def test_beginner_config_contains_all_required_comparisons() -> None:

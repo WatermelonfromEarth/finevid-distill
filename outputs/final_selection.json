@@ -1,0 +1,48 @@
+{
+  "development_question_count": 883,
+  "development_winner": "hard_label",
+  "distilled_minus_hard_development_mrr": -0.08604128506450126,
+  "models": {
+    "distilled": {
+      "dev_data_sha256": "1102d2213c94acd3904842c691d1baa014d6549758a43bbf01f359b0657ff6b4",
+      "development_metrics": {
+        "complete_recall_at_5": 0.7644394110985278,
+        "mrr": 0.8403378724584841,
+        "ndcg_at_10": 0.8320888820044248,
+        "recall_at_1": 0.5402240737744701,
+        "recall_at_5": 0.8667920509086987
+      },
+      "run_directory_name": "distilled_student",
+      "selected_checkpoint": "epochs/epoch-002/model",
+      "selected_epoch": 2,
+      "train_rows_sha256": "df56334db862a9e45504db7a1b0846c394e3e7fc9c1414dd89c101efa05a847e",
+      "training_code_sha256": "f79751102da4d87aa469996d3138d25e2124d4a680116d9555d1d1b4a3e8b113"
+    },
+    "hard_label": {
+      "dev_data_sha256": "1102d2213c94acd3904842c691d1baa014d6549758a43bbf01f359b0657ff6b4",
+      "development_metrics": {
+        "complete_recall_at_5": 0.8686296715741789,
+        "mrr": 0.9263791575229854,
+        "ndcg_at_10": 0.9143770113764651,
+        "recall_at_1": 0.6241452300059321,
+        "recall_at_5": 0.9363412069244459
+      },
+      "run_directory_name": "hard_label_student_tau005",
+      "selected_checkpoint": "epochs/epoch-003/model",
+      "selected_epoch": 3,
+      "train_rows_sha256": "df56334db862a9e45504db7a1b0846c394e3e7fc9c1414dd89c101efa05a847e",
+      "training_code_sha256": "f79751102da4d87aa469996d3138d25e2124d4a680116d9555d1d1b4a3e8b113"
+    }
+  },
+  "no_further_hyperparameter_search": true,
+  "schema_version": 1,
+  "seed": 42,
+  "selection_metric": "mrr",
+  "selection_rule": "best completed epoch by development MRR",
+  "selection_split": "dev",
+  "source_bundle_sha256": "17a078245004016d7aa376692959e982ccd100beb5aced08cb746a4510949d80",
+  "status": "frozen_before_public_test",
+  "test_data_sha256": "14b7b00bced86a9a37a040f0c2fc14ab1cdef7c43f895e21ff4da54cb668b975",
+  "test_evaluated_at_freeze": false,
+  "test_question_count": 1147
+}

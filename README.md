@@ -289,6 +289,55 @@ python src/evaluation/compare_students.py `
 
 The comparison checks matching controls and initial metrics, complete epoch/step budgets, best-by-MRR selection, and consistent reload verification. It reports every development metric and the Distilled-minus-Hard differences. Diagnostic runs are rejected unless explicitly allowed; they are never labelled as full experiments. This is a development comparison, not final test evidence or a significance claim.
 
+The complete seed-42 GPU runs selected hard-label epoch 3 (development MRR 0.926379) and distilled epoch 2 (development MRR 0.840338). Both checkpoints reloaded exactly. `outputs/final_selection.json` records these decisions, input and implementation hashes, the public-test file hash, and the prohibition on further hyperparameter search. It was frozen before public-test scoring.
+
+## Milestone 11: locked final comparison
+
+Public-test teacher scoring is disabled unless the frozen selection validates against both complete student run directories. Once frozen, cache the test teacher logits resumably:
+
+```powershell
+python src/data/cache_teacher_scores.py `
+  --splits test `
+  --processed-dir data/processed `
+  --output-dir path/to/teacher_scores `
+  --final-selection outputs/final_selection.json `
+  --hard-dir path/to/checkpoints/hard_label_student_tau005 `
+  --distilled-dir path/to/checkpoints/distilled_student `
+  --device cuda
+```
+
+One command then reproduces the six-model test table from the saved selected checkpoints and raw teacher cache:
+
+```powershell
+python src/evaluation/final_comparison.py `
+  --selection outputs/final_selection.json `
+  --test-data data/processed/test.jsonl `
+  --teacher-cache path/to/teacher_scores/teacher_test_scores.jsonl `
+  --hard-dir path/to/checkpoints/hard_label_student_tau005 `
+  --distilled-dir path/to/checkpoints/distilled_student `
+  --device cuda `
+  --output outputs/final_test_results.json
+```
+
+The command validates the fixed 1,147-question test SHA-256, checkpoint provenance, development selection, teacher candidate ordering, and all six result rows. It reports `Distilled BGE NDCG@10 / Qwen teacher NDCG@10` as teacher quality retained and answers the primary MRR comparison directly.
+
+## Milestone 12: same-hardware efficiency benchmark
+
+After final quality evaluation, benchmark Qwen and the selected distilled checkpoint in one process on one CUDA device:
+
+```powershell
+python src/evaluation/benchmark_efficiency.py `
+  --selection outputs/final_selection.json `
+  --test-data data/processed/test.jsonl `
+  --quality-results outputs/final_test_results.json `
+  --hard-dir path/to/checkpoints/hard_label_student_tau005 `
+  --distilled-dir path/to/checkpoints/distilled_student `
+  --device cuda `
+  --output outputs/efficiency_results.json
+```
+
+The deterministic benchmark sample contains 100 unique processed FinQA candidates. It reports parameter count, parameter-and-buffer bytes, peak allocated CUDA memory, median candidate precomputation time, query latency, online rank-100 latency, and candidates per second. BGE candidate embeddings are normalized and precomputed; that cost is reported separately. Qwen cannot precompute query-independent candidate embeddings, so its rank-100 timing cross-encodes all pairs. The resulting table combines test NDCG@10 with efficiency.
+
 ### Running in Colab without publishing local changes
 
 Build a portable source bundle from the repository root:
@@ -299,7 +348,15 @@ python scripts/package_colab.py --output outputs/finevid_milestone10_source.zip
 
 Open `notebooks/04_colab_distilled.ipynb` in Colab, select a GPU runtime, and run its cells in order. Upload that bundle when prompted. The notebook verifies its manifest, installs the bundled source, tests it, rebuilds shared rows from the existing Drive teacher cache, trains both treatments, validates the comparison, and downloads a small review ZIP. The bundle contains source and train/development inputs; it omits credentials, raw data, teacher caches, model checkpoints, and the test ranking file. Existing teacher caches must remain under `MyDrive/FinEvid-Distill/teacher_scores/`.
 
-The full matched GPU runs and their measured performance remain pending until the notebook produces verified results. Passing unit tests or saving a small CPU diagnostic checkpoint does not complete that experimental milestone.
+For the final comparison and benchmark, create the separately gated bundle only after `outputs/final_selection.json` is frozen:
+
+```powershell
+python scripts/package_colab.py `
+  --include-final-test `
+  --output outputs/finevid_final_source.zip
+```
+
+Open `notebooks/05_colab_final_evaluation.ipynb`, upload that final bundle, and run its cells in order. Qwen test scoring is resumable. The final evaluator releases Qwen before loading BGE, and the benchmark loads the two models sequentially.
 
 ## Milestone status
 
@@ -313,4 +370,6 @@ The full matched GPU runs and their measured performance remain pending until th
 - [x] Milestone 7: complete training/development teacher caches validate, and Qwen development MRR 0.804112 exceeds frozen BGE MRR 0.789972.
 - [x] Milestone 8: one deterministic 6,251-row artifact retains every gold fact and exactly aligns candidate, label, text, and teacher-score order.
 - [x] Milestone 9: the original temperature-1 hard-label GPU run completed all three epochs; its best checkpoint was reloaded and verified.
-- [ ] Milestone 10: distilled training, matched-temperature control, safety checks, checkpoint recovery, and Colab workflow are implemented; full matched GPU runs and their comparison remain pending.
+- [x] Milestone 10: both matched GPU treatments completed all epochs; hard-label epoch 3 and distilled epoch 2 were reloaded, compared, and frozen.
+- [ ] Milestone 11: final selection and the locked six-model test pipeline are implemented; public-test scores remain pending the final Colab run.
+- [ ] Milestone 12: same-hardware benchmark and quality–efficiency reporting are implemented; measured GPU results remain pending the final Colab run.

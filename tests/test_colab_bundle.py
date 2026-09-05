@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 from zipfile import ZipFile
 
+import pytest
+
 from scripts.package_colab import package_project
 
 
@@ -54,3 +56,20 @@ def test_bundle_is_byte_reproducible(tmp_path: Path) -> None:
     package_project(root, second)
 
     assert first.read_bytes() == second.read_bytes()
+
+
+def test_final_bundle_requires_selection_and_includes_locked_test(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    if not (root / "data/processed/test.jsonl").exists():
+        pytest.skip("Development-only bundle intentionally excludes the public test file.")
+    output = tmp_path / "final.zip"
+
+    package_project(root, output, include_final_test=True)
+
+    with ZipFile(output) as archive:
+        names = set(archive.namelist())
+        manifest = json.loads(archive.read("bundle_manifest.json"))
+        assert manifest["test_access_gate"] == "frozen final selection"
+        assert "outputs/final_selection.json" in names
+        assert "data/processed/test.jsonl" in names
+        assert "notebooks/05_colab_final_evaluation.ipynb" in names

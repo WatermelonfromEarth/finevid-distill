@@ -37,6 +37,9 @@ finevid-build-training-rows = "finevid_distill.data.build_training_rows:main"
 finevid-train-hard-labels = "finevid_distill.training.train_hard_labels:main"
 finevid-train-distilled = "finevid_distill.training.train_distilled:main"
 finevid-compare-students = "finevid_distill.evaluation.compare_students:main"
+finevid-freeze-final-selection = "finevid_distill.evaluation.final_selection:main"
+finevid-final-comparison = "finevid_distill.evaluation.final_comparison:main"
+finevid-benchmark-efficiency = "finevid_distill.evaluation.benchmark_efficiency:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

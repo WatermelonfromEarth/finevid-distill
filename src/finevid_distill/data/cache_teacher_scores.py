@@ -18,7 +18,7 @@ from finevid_distill.models.teacher import (
 
 
 SCORE_TYPE = "raw_logit_difference"
-OFFICIAL_CACHE_SPLITS = ("train", "dev")
+OFFICIAL_CACHE_SPLITS = ("train", "dev", "test")
 
 
 class PairScorer(Protocol):
@@ -233,6 +233,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--no-resume", action="store_true")
     parser.add_argument("--limit", type=int)
+    parser.add_argument(
+        "--final-selection",
+        type=Path,
+        help="Required frozen development selection before any public-test scoring.",
+    )
+    parser.add_argument("--hard-dir", type=Path)
+    parser.add_argument("--distilled-dir", type=Path)
     return parser.parse_args(argv)
 
 
@@ -240,6 +247,35 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if args.max_length <= 0 or args.batch_size <= 0 or args.pair_chunk_size <= 0:
         raise ValueError("Length and batch arguments must be positive.")
+    if "test" in args.splits:
+        from finevid_distill.evaluation.final_selection import (
+            EXPECTED_TEST_DATA_SHA256,
+            EXPECTED_TEST_QUESTIONS,
+            sha256_file,
+            validate_selection_against_runs,
+            validate_selection_document,
+        )
+
+        if args.splits != ["test"]:
+            raise ValueError("Public-test teacher scoring must run separately from train/dev.")
+        if args.limit is not None:
+            raise ValueError("The locked public-test teacher cache cannot be partial.")
+        if args.final_selection is None:
+            raise ValueError("--final-selection is required before public-test scoring.")
+        if args.hard_dir is None or args.distilled_dir is None:
+            raise ValueError(
+                "--hard-dir and --distilled-dir are required before public-test scoring."
+            )
+        selection = json.loads(args.final_selection.read_text(encoding="utf-8"))
+        validate_selection_document(selection)
+        validate_selection_against_runs(
+            args.final_selection, args.hard_dir, args.distilled_dir
+        )
+        test_path = args.processed_dir / "test.jsonl"
+        if sha256_file(test_path) != EXPECTED_TEST_DATA_SHA256:
+            raise ValueError("Processed public test data does not match the frozen SHA-256.")
+        if len(load_jsonl(test_path)) != EXPECTED_TEST_QUESTIONS:
+            raise ValueError("Processed public test question count changed.")
     teacher = QwenTeacher(
         args.model,
         revision=args.revision,
