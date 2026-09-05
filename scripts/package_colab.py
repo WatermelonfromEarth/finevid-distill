@@ -11,11 +11,17 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 def package_project(root: Path, output: Path) -> dict:
     paths = set()
-    for pattern in ("src/**/*.py", "configs/*.yaml", "tests/*.py", "scripts/*.py"):
+    for pattern in (
+        "src/**/*.py",
+        "configs/*.yaml",
+        "tests/*.py",
+        "scripts/*.py",
+        "notebooks/*.ipynb",
+    ):
         paths.update(root.glob(pattern))
+    paths.update(root.glob("outputs/hard_label_run/*.json"))
     paths.update(root / name for name in (
         "README.md", "pyproject.toml", "requirements-colab.txt",
-        "notebooks/04_colab_distilled.ipynb",
         "data/processed/train.jsonl", "data/processed/dev.jsonl",
         "outputs/data_statistics.json", "outputs/dev_baselines.json",
         "outputs/dev_teacher_comparison.json",

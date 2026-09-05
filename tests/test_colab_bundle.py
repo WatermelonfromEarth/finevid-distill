@@ -22,9 +22,13 @@ def test_colab_bundle_is_manifested_and_excludes_private_or_test_artifacts(
         for name, expected_hash in manifest["files"].items():
             assert hashlib.sha256(archive.read(name)).hexdigest() == expected_hash
         assert "src/finevid_distill/training/train_distilled.py" in names
+        assert "notebooks/01_inspect_finqa.ipynb" in names
+        assert "notebooks/02_colab_teacher.ipynb" in names
+        assert "notebooks/03_colab_hard_label.ipynb" in names
         assert "notebooks/04_colab_distilled.ipynb" in names
         assert "data/processed/train.jsonl" in names
         assert "data/processed/dev.jsonl" in names
+        assert "outputs/hard_label_run/run_config.json" in names
         forbidden_fragments = (
             "test.jsonl",
             "teacher_train_scores",
