@@ -57,6 +57,7 @@ EXPECTED_TRAIN_ROWS_SHA256 = "df56334db862a9e45504db7a1b0846c394e3e7fc9c1414dd89
 EXPECTED_DEV_DATA_SHA256 = "1102d2213c94acd3904842c691d1baa014d6549758a43bbf01f359b0657ff6b4"
 EXPECTED_TRAINING_QUESTIONS = 6251
 EXPECTED_DEVELOPMENT_QUESTIONS = 883
+MAX_FP16_OVERFLOW_RETRIES = 16
 
 
 def project_root() -> Path:
@@ -302,6 +303,7 @@ def train_one_epoch(
     total_questions = 0
     gradient_norms: list[float] = []
     component_totals: dict[str, float] = {}
+    loss_scale_overflow_retries = 0
     batches = epoch_batches(
         rows,
         questions_per_batch=questions_per_batch,
@@ -309,35 +311,65 @@ def train_one_epoch(
         epoch=epoch,
     )
     for batch_index, batch in enumerate(batches, start=1):
-        optimizer.zero_grad(set_to_none=True)
-        context = (
-            torch.autocast(device_type="cuda", dtype=torch.float16)
-            if use_fp16
-            else nullcontext()
-        )
-        with context:
-            components = training_batch_losses(
-                model, batch, device=device, treatment=treatment,
-                student_temperature=student_temperature,
-                teacher_temperature=teacher_temperature,
-                hard_label_weight=hard_label_weight,
+        overflow_attempts = 0
+        while True:
+            optimizer.zero_grad(set_to_none=True)
+            context = (
+                torch.autocast(device_type="cuda", dtype=torch.float16)
+                if use_fp16
+                else nullcontext()
             )
-            loss = components["total_loss"]
-        if scaler is not None:
-            scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-        else:
-            loss.backward()
-        gradient_norm = torch.nn.utils.clip_grad_norm_(
-            model.parameters(), max_gradient_norm
-        )
-        if not torch.isfinite(gradient_norm):
-            raise FloatingPointError("Encountered a non-finite gradient norm.")
-        if scaler is not None:
+            with context:
+                components = training_batch_losses(
+                    model, batch, device=device, treatment=treatment,
+                    student_temperature=student_temperature,
+                    teacher_temperature=teacher_temperature,
+                    hard_label_weight=hard_label_weight,
+                )
+                loss = components["total_loss"]
+            if scaler is not None:
+                scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+            else:
+                loss.backward()
+            gradient_norm = torch.nn.utils.clip_grad_norm_(
+                model.parameters(), max_gradient_norm
+            )
+            if torch.isfinite(gradient_norm):
+                if scaler is not None:
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    optimizer.step()
+                break
+            if scaler is None or not any(
+                parameter.grad is not None
+                and not torch.isfinite(parameter.grad).all()
+                for parameter in model.parameters()
+            ):
+                raise FloatingPointError("Encountered a non-finite gradient norm.")
+
+            previous_scale = float(scaler.get_scale())
+            # GradScaler recorded the non-finite values during unscale_. Its step
+            # is therefore skipped, and update() backs the scale off safely.
             scaler.step(optimizer)
             scaler.update()
-        else:
-            optimizer.step()
+            current_scale = float(scaler.get_scale())
+            overflow_attempts += 1
+            loss_scale_overflow_retries += 1
+            if (
+                overflow_attempts > MAX_FP16_OVERFLOW_RETRIES
+                or not current_scale < previous_scale
+            ):
+                raise FloatingPointError(
+                    "FP16 gradients remained non-finite after loss-scale backoff."
+                )
+            if show_progress:
+                print(
+                    f"Epoch {epoch}: batch {batch_index:,} FP16 overflow; "
+                    f"retrying with loss scale {current_scale:g}.",
+                    flush=True,
+                )
         scheduler.step()
 
         for name, value in components.items():
@@ -362,6 +394,7 @@ def train_one_epoch(
         "training_loss": total_loss / total_questions,
         "gradient_norm": sum(gradient_norms) / len(gradient_norms),
         "optimizer_steps": len(batches),
+        "loss_scale_overflow_retries": loss_scale_overflow_retries,
         "learning_rate": float(optimizer.param_groups[0]["lr"]),
     }
 
@@ -715,12 +748,36 @@ def main(argv: list[str] | None = None, *, treatment: str = "hard_label") -> int
         if not run_config_path.exists():
             raise FileNotFoundError("No resumable student checkpoint was found.")
         stored_config = json.loads(run_config_path.read_text(encoding="utf-8"))
-        if stored_config != run_config:
-            raise ValueError(
-                "Resume configuration differs from the original run. Legacy temperature-1 "
-                "artifacts are preserved; use a new output directory for the matched experiment."
-            )
         latest, _, history = recover_checkpoint_index(output_dir)
+        if stored_config != run_config:
+            differing_fields = {
+                key
+                for key in stored_config.keys() | run_config.keys()
+                if stored_config.get(key) != run_config.get(key)
+            }
+            if latest is None and differing_fields == {"training_code_sha256"}:
+                fingerprint = hashlib.sha256(
+                    json.dumps(stored_config, sort_keys=True).encode("utf-8")
+                ).hexdigest()[:12]
+                abandoned = output_dir / "abandoned_runs" / fingerprint
+                write_json(stored_config, abandoned / "run_config.json")
+                initial_path = output_dir / "initial_development.json"
+                if initial_path.exists():
+                    write_json(
+                        json.loads(initial_path.read_text(encoding="utf-8")),
+                        abandoned / "initial_development.json",
+                    )
+                write_json(run_config, run_config_path)
+                print(
+                    "Restarting the uncheckpointed run with the updated trainer; "
+                    f"the previous metadata is preserved in {abandoned}.",
+                    flush=True,
+                )
+            else:
+                raise ValueError(
+                    "Resume configuration differs from the original run. Legacy temperature-1 "
+                    "artifacts are preserved; use a new output directory for the matched experiment."
+                )
         if latest is not None and latest["completed_epoch"] > args.epochs:
             raise ValueError("Saved run contains more epochs than the configured budget.")
     else:

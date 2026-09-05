@@ -160,6 +160,62 @@ def test_one_epoch_is_reproducible() -> None:
     assert all(torch.equal(first_state[key], second_state[key]) for key in first_state)
 
 
+def test_fp16_loss_scaler_backs_off_and_retries_the_same_batch() -> None:
+    class OverflowOnceScaler:
+        def __init__(self) -> None:
+            self.scale_value = 8.0
+            self.unscale_calls = 0
+            self.optimizer_steps = 0
+            self.found_nonfinite = False
+
+        def scale(self, loss):
+            return loss
+
+        def unscale_(self, optimizer) -> None:
+            self.found_nonfinite = self.unscale_calls == 0
+            self.unscale_calls += 1
+            if self.found_nonfinite:
+                parameter = optimizer.param_groups[0]["params"][0]
+                parameter.grad.view(-1)[0] = float("inf")
+
+        def step(self, optimizer) -> None:
+            if not self.found_nonfinite:
+                optimizer.step()
+                self.optimizer_steps += 1
+
+        def update(self) -> None:
+            if self.found_nonfinite:
+                self.scale_value /= 2
+
+        def get_scale(self) -> float:
+            return self.scale_value
+
+    model = TinySentenceEncoder()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda _: 1.0)
+    scaler = OverflowOnceScaler()
+
+    metrics = train_one_epoch(
+        model,
+        training_rows(),
+        optimizer,
+        scheduler,
+        device=torch.device("cpu"),
+        questions_per_batch=2,
+        seed=42,
+        epoch=1,
+        max_gradient_norm=1.0,
+        scaler=scaler,
+        use_fp16=False,
+        show_progress=False,
+    )
+
+    assert metrics["optimizer_steps"] == 1
+    assert metrics["loss_scale_overflow_retries"] == 1
+    assert scaler.unscale_calls == 2
+    assert scaler.optimizer_steps == 1
+
+
 def test_checkpoint_saves_model_optimizer_scheduler_and_rng(tmp_path: Path) -> None:
     set_reproducible_seed(42)
     model = TinySentenceEncoder()

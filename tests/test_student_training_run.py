@@ -108,6 +108,32 @@ def test_resume_rejects_changed_temperature_and_preserves_original(run_inputs, t
     assert (output / "run_config.json").read_bytes() == original
 
 
+def test_uncheckpointed_run_restarts_after_trainer_fix(run_inputs, tmp_path, monkeypatch):
+    output = tmp_path / "run"
+    arguments = run_inputs + ["--output-dir", str(output)]
+    original_epoch = trainer.train_one_epoch
+
+    def fail_before_first_checkpoint(*args, **kwargs):
+        raise FloatingPointError("simulated FP16 overflow")
+
+    monkeypatch.setattr(trainer, "train_one_epoch", fail_before_first_checkpoint)
+    with pytest.raises(FloatingPointError, match="overflow"):
+        trainer.main(arguments)
+    failed_config = read_json(output, "run_config.json")
+    failed_config["training_code_sha256"] = "pre-overflow-retry-trainer"
+    (output / "run_config.json").write_text(json.dumps(failed_config))
+
+    monkeypatch.setattr(trainer, "train_one_epoch", original_epoch)
+    assert trainer.main(arguments + ["--resume"]) == 0
+
+    backups = list((output / "abandoned_runs").glob("*/run_config.json"))
+    assert len(backups) == 1
+    assert json.loads(backups[0].read_text())["training_code_sha256"] == (
+        "pre-overflow-retry-trainer"
+    )
+    assert read_json(output, "latest.json")["completed_epoch"] == 2
+
+
 def test_same_pretrained_initial_evaluation_for_both_treatments(run_inputs, tmp_path):
     for treatment in ("hard_label", "distilled"):
         trainer.main(run_inputs + ["--output-dir", str(tmp_path / treatment)], treatment=treatment)
