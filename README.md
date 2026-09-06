@@ -417,4 +417,4 @@ The packet contains exactly 80 genuine failure instances: 20 per model. Half of 
 - [x] Milestone 10: both matched GPU treatments completed all epochs; hard-label epoch 3 and distilled epoch 2 were reloaded, compared, and frozen.
 - [x] Milestone 11: the locked six-model comparison completed on all 1,147 test questions and answers the research question.
 - [x] Milestone 12: Qwen and distilled BGE were benchmarked sequentially on the same Tesla T4 and the quality–efficiency table is saved.
-- [ ] Milestone 13: the reproducible 80-failure review pipeline is implemented; human classification and the final CSV/report await the compact Colab packet.
+- [x] Milestone 13: 80 sampled failures were manually classified in `outputs/error_analysis.csv`; model-level findings and annotation caveats are documented in `docs/error_analysis.md`.

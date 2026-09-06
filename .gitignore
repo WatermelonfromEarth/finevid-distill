@@ -26,6 +26,7 @@ outputs/*
 !outputs/final_selection.json
 !outputs/final_test_results.json
 !outputs/efficiency_results.json
+!outputs/error_analysis.csv
 !outputs/hard_label_run/
 !outputs/hard_label_run/*.json
 notebooks/.ipynb_checkpoints/
