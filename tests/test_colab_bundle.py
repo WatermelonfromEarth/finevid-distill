@@ -75,3 +75,29 @@ def test_final_bundle_requires_selection_and_includes_locked_test(tmp_path: Path
         assert "outputs/efficiency_results.json" in names
         assert "data/processed/test.jsonl" in names
         assert "notebooks/05_colab_final_evaluation.ipynb" in names
+
+
+def test_error_analysis_bundle_adds_raw_annotations_after_final_unlock(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    if not (root / "data/raw/test.json").exists():
+        pytest.skip("Raw test annotations are intentionally absent from compact bundles.")
+    output = tmp_path / "error-analysis.zip"
+
+    with pytest.raises(ValueError, match="requires"):
+        package_project(root, output, include_error_analysis=True)
+
+    package_project(
+        root,
+        output,
+        include_final_test=True,
+        include_error_analysis=True,
+    )
+
+    with ZipFile(output) as archive:
+        names = set(archive.namelist())
+        manifest = json.loads(archive.read("bundle_manifest.json"))
+        assert manifest["purpose"] == "FinEvid-Distill Milestone 13 failure-analysis bundle"
+        assert manifest["test_access_gate"] == "frozen final selection"
+        assert "data/raw/test.json" in names
+        assert "notebooks/06_colab_error_analysis.ipynb" in names
+        assert "src/finevid_distill/evaluation/error_analysis.py" in names

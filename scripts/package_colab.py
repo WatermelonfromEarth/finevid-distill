@@ -9,7 +9,15 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 
-def package_project(root: Path, output: Path, *, include_final_test: bool = False) -> dict:
+def package_project(
+    root: Path,
+    output: Path,
+    *,
+    include_final_test: bool = False,
+    include_error_analysis: bool = False,
+) -> dict:
+    if include_error_analysis and not include_final_test:
+        raise ValueError("Error analysis requires the already-unlocked final-test bundle.")
     paths = set()
     for pattern in (
         "src/**/*.py",
@@ -37,6 +45,9 @@ def package_project(root: Path, output: Path, *, include_final_test: bool = Fals
             )
         )
         purpose = "FinEvid-Distill Milestones 11-12 locked final Colab bundle"
+    if include_error_analysis:
+        paths.add(root / "data/raw/test.json")
+        purpose = "FinEvid-Distill Milestone 13 failure-analysis bundle"
     manifest = {
         "purpose": purpose,
         "test_access_gate": "frozen final selection" if include_final_test else "test excluded",
@@ -62,6 +73,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--include-final-test", action="store_true")
+    parser.add_argument("--include-error-analysis", action="store_true")
     args = parser.parse_args()
     print(
         json.dumps(
@@ -69,6 +81,7 @@ def main() -> None:
                 Path(__file__).resolve().parents[1],
                 args.output,
                 include_final_test=args.include_final_test,
+                include_error_analysis=args.include_error_analysis,
             ),
             indent=2,
         )

@@ -385,6 +385,23 @@ python scripts/package_colab.py `
 
 Open `notebooks/05_colab_final_evaluation.ipynb`, upload that final bundle, and run its cells in order. Qwen test scoring is resumable. The final evaluator releases Qwen before loading BGE, and the benchmark loads the two models sequentially.
 
+## Milestone 13: failure analysis
+
+Failure analysis uses CompleteRecall@5 as its explicit case-level failure definition: a model fails when at least one required gold fact is absent from its first five results. The aggregate test results therefore contain 328 Frozen BGE failures, 151 Hard-label BGE failures, 304 Distilled BGE failures, and 323 Qwen teacher failures. These are full-test counts; the qualitative sample must not be treated as an estimate of prevalence.
+
+Create the post-test review bundle:
+
+```powershell
+python scripts/package_colab.py `
+  --include-final-test `
+  --include-error-analysis `
+  --output outputs/finevid_error_analysis_source.zip
+```
+
+Open `notebooks/06_colab_error_analysis.ipynb` and upload that bundle. The notebook never loads Qwen: it reuses `teacher_test_scores.jsonl`, scores the three BGE variants, verifies that all four aggregate metric rows exactly reproduce the locked final result, and downloads `milestone13_review_packet.zip`. Model score caches are saved after each model, so a disconnected run resumes without repeating completed scoring. A CPU runtime is valid; a GPU only makes BGE encoding faster.
+
+The packet contains exactly 80 genuine failure instances: 20 per model. Half of each sample is prioritized for a contrast with the hard-label or distilled student when enough such cases exist, and the remainder uses deterministic seed-42 sampling. Each instance includes the question, gold candidates, original `gold_inds`, program, answer, gold ranks, top-ten result text and scores, and peer-model rankings. Human review assigns exactly one of the nine declared categories plus a concrete note to every instance. This is post-hoc interpretation only: no model, hyperparameter, or test result may be changed afterward.
+
 ## Milestone status
 
 - [x] Milestone 0: experiment question, comparisons, metrics, and restrictions are fixed.
@@ -400,3 +417,4 @@ Open `notebooks/05_colab_final_evaluation.ipynb`, upload that final bundle, and 
 - [x] Milestone 10: both matched GPU treatments completed all epochs; hard-label epoch 3 and distilled epoch 2 were reloaded, compared, and frozen.
 - [x] Milestone 11: the locked six-model comparison completed on all 1,147 test questions and answers the research question.
 - [x] Milestone 12: Qwen and distilled BGE were benchmarked sequentially on the same Tesla T4 and the quality–efficiency table is saved.
+- [ ] Milestone 13: the reproducible 80-failure review pipeline is implemented; human classification and the final CSV/report await the compact Colab packet.

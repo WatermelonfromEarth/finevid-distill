@@ -15,4 +15,6 @@ Milestone 10 writes the matched control to `checkpoints/hard_label_student_tau00
 
 `final_selection.json` is the tracked pre-test freeze record. It selects hard-label epoch 3 and distilled epoch 2 from complete development runs and locks the public-test hash before evaluation. `final_test_results.json` is the validated six-model Milestone 11 result, and `efficiency_results.json` is the same-Tesla-T4 Milestone 12 benchmark. Checkpoint weights and raw teacher caches remain in persistent external artifact storage.
 
+Milestone 13 first writes resumable per-model ranking caches and `error_review_packet.json` to persistent artifact storage. After exactly 80 failures are classified, the compact, tracked deliverables are `error_analysis.csv` and `docs/error_analysis.md`; raw score caches and checkpoints remain outside Git.
+
 Regenerate both with `python src/data/validate_dataset.py --seed 42`. Run-specific metrics, checkpoints, logs, and final experiment tables remain ignored.

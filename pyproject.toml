@@ -40,6 +40,7 @@ finevid-compare-students = "finevid_distill.evaluation.compare_students:main"
 finevid-freeze-final-selection = "finevid_distill.evaluation.final_selection:main"
 finevid-final-comparison = "finevid_distill.evaluation.final_comparison:main"
 finevid-benchmark-efficiency = "finevid_distill.evaluation.benchmark_efficiency:main"
+finevid-prepare-error-analysis = "finevid_distill.evaluation.error_analysis:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
