@@ -30,6 +30,7 @@ dev = [
 [project.scripts]
 finevid-environment = "finevid_distill.environment:main"
 finevid-build-dataset = "finevid_distill.data.build_dataset:main"
+finevid-download-finqa = "finevid_distill.data.download_finqa:main"
 finevid-validate-dataset = "finevid_distill.data.validate_dataset:main"
 finevid-evaluate = "finevid_distill.evaluation.evaluate:main"
 finevid-cache-teacher = "finevid_distill.data.cache_teacher_scores:main"
@@ -41,6 +42,7 @@ finevid-freeze-final-selection = "finevid_distill.evaluation.final_selection:mai
 finevid-final-comparison = "finevid_distill.evaluation.final_comparison:main"
 finevid-benchmark-efficiency = "finevid_distill.evaluation.benchmark_efficiency:main"
 finevid-prepare-error-analysis = "finevid_distill.evaluation.error_analysis:main"
+finevid-audit = "finevid_distill.evaluation.audit_repository:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

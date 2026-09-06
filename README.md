@@ -1,420 +1,185 @@
 # finevid-distill
 
-`finevid-distill` is a deliberately small retrieval-distillation experiment. It answers one question:
+`finevid-distill` is a controlled FinQA evidence-ranking experiment. It asks:
 
 > On FinQA report-level candidate sets, does teacher-score distillation improve BGE-small beyond ordinary hard-label fine-tuning?
 
-**Answer: no.** On the locked 1,147-question test split, distilled BGE reaches MRR 0.846864, while the matched hard-label BGE reaches 0.934211 (Distilled minus Hard = -0.087347). Distillation improves substantially over frozen BGE, but ordinary hard-label fine-tuning is the stronger student treatment under this fixed experiment.
+**Answer: no.** On the locked 1,147-question test split, Hard-label BGE reaches 0.9342 MRR and Distilled BGE reaches 0.8469. Distillation improves the frozen encoder and slightly exceeds the teacher, but it is substantially weaker than ordinary supervised fine-tuning.
 
-The repository fixes the experiment contract, materializes one shared training set for both student treatments, and keeps modelling and evaluation logic reproducible. Later work must not silently change the contract below.
+## Project objective
 
-## Experiment contract
+The experiment fixes every important choice before test evaluation:
 
 | Item | Fixed choice |
-|---|---|
+| --- | --- |
 | Dataset | FinQA |
-| Candidate-pool scope | All evidence entries in the question's FinQA report |
-| Candidate unit | One `pre_text` entry, `post_text` entry, or table row |
-| Teacher | `Qwen/Qwen3-Reranker-0.6B` |
-| Student | `BAAI/bge-small-en-v1.5` |
-| Random seed | `42` |
-| Training candidate set | Approximately 8 evidence candidates per question: all labelled positives plus seeded uniform negatives sampled without replacement from the same report |
-| Development split | Used for implementation checks, hyperparameter choices, and selection of the final configuration |
-| Test split | Kept untouched until the final configuration has been selected; used once for the final comparison |
+| Retrieval pool | Every prose entry and table row in the question's report |
+| Teacher | `Qwen/Qwen3-Reranker-0.6B` at revision `e61197e…` |
+| Student | `BAAI/bge-small-en-v1.5` at revision `5c38ec7…` |
+| Seed | 42 |
+| Training row | All gold facts plus seeded same-report negatives, approximately eight candidates |
+| Selection | Development MRR |
+| Test use | Once, after checkpoint selection was frozen |
 
-The machine-readable source of truth is [`configs/beginner.yaml`](configs/beginner.yaml). Tests fail if its core contract drifts from these choices.
+The full machine-readable contract is [`configs/beginner.yaml`](configs/beginner.yaml). Hard-label and distilled training use the same initialization, examples, candidate order, optimizer settings, training budget, and evaluator. Only their supervision differs.
 
-## Required experiment table
+## Teacher–student architecture
 
-Every final result table must contain all six rows. The two trained student rows use the same BGE-small architecture, candidate sets, seed, training budget, and evaluation code; only their supervision differs.
-
-| System | Training or scoring signal | Role |
-|---|---|---|
-| Random | Seeded random ranking | Sanity check |
-| BM25 | Lexical BM25 score; no neural training | Lexical baseline |
-| Frozen BGE-small | Off-the-shelf BGE-small similarity; no fine-tuning | Pretrained student baseline |
-| Hard-label BGE-small | Equal-mass distribution over all FinQA gold labels | Ordinary fine-tuning baseline |
-| Distilled BGE-small | Soft target distribution made from the frozen Qwen teacher scores | Treatment under test |
-| Qwen teacher | Frozen Qwen reranker score | Teacher reference comparison |
-
-The primary comparison is **Distilled BGE-small versus Hard-label BGE-small**. BM25, frozen BGE-small, and the Qwen teacher provide context; they do not replace the primary comparison.
-
-## Metrics and decision rule
-
-Evidence candidates are sorted from highest to lowest score. A question can have more than one labelled positive; rank is therefore based on its highest-ranked positive candidate.
-
-| Metric | Definition | Use |
-|---|---|---|
-| MRR | Mean reciprocal rank of the first labelled positive candidate | Primary metric |
-| Recall@1 | Per-question fraction of all gold facts in the top 1, macro-averaged | Secondary metric |
-| Recall@5 | Per-question fraction of all gold facts in the top 5, macro-averaged | Secondary metric |
-| NDCG@10 | Binary-relevance DCG at 10 divided by the ideal DCG for all gold facts | Secondary metric |
-| CompleteRecall@5 | Fraction of questions for which every gold fact is in the top 5 | Secondary metric |
-
-Use development MRR to make configuration decisions. After selecting one final configuration, evaluate all six systems on the test set and report every metric plus the absolute Distilled-minus-Hard delta. The beginner experiment answers “yes” only when the final distilled student's test MRR is greater than the final hard-label student's test MRR; the size of the delta and all secondary metrics must still be shown.
-
-## Scope restrictions
-
-- Do not substitute another dataset, teacher, student, seed, or retrieval unit in this beginner experiment.
-- Do not tune on, inspect per-example errors from, or repeatedly evaluate the test split before configuration selection is complete.
-- Do not omit any of the six required systems from the final report.
-- Do not give the distilled student extra data, candidate sets, optimizer steps, or evaluation treatment that the hard-label student does not receive.
-- Teacher-score distillation means soft supervision derived from the fixed Qwen teacher's scores over the same candidate set. It is not pseudo-label filtering or extra teacher-generated text.
-- Keep report text construction and candidate-set construction identical across systems. Cache candidates and teacher scores so each comparison sees the same examples.
-- Record any unavoidable implementation deviation in the README and config before running the test set. A changed model or dataset is a different experiment, not a beginner-run variation.
-
-## Project layout
+Qwen is a cross-encoder reranker: it reads each question–candidate pair and produces a raw yes-minus-no logit. BGE-small is a bi-encoder: it separately encodes the instructed question and uninstructed candidate, normalizes both embeddings, and scores their cosine-equivalent dot product.
 
 ```text
-finevid-distill/
-├── configs/
-├── data/
-│   ├── raw/
-│   └── processed/
-├── notebooks/
-├── outputs/
-├── src/finevid_distill/
-│   ├── data/
-│   ├── evaluation/
-│   ├── models/
-│   └── training/
-├── tests/
-├── README.md
-├── requirements.txt
-└── pyproject.toml
+FinQA question + report candidates
+             │
+             ├── Qwen cross-encoder ── raw teacher scores ── softmax(· / 0.3)
+             │                                                │
+             └── BGE bi-encoder ── normalized cosine scores ── softmax(· / 0.05)
+                                                              │
+Hard-label target: equal probability over every gold fact ────┤
+                                                              ▼
+Hard model:      listwise cross-entropy
+Distilled model: KL(teacher || student) + 0.1 × hard-label loss
 ```
 
-The three deterministic ranking datasets and their validation artifacts are checked in. Raw FinQA downloads, model checkpoints, and other run-specific outputs remain ignored.
+Teacher tensors are detached, padding is excluded before softmax, KL is computed across candidates within each question, and probability/loss calculations use FP32. The query instruction is applied only to questions.
 
-## Environment setup
+## Dataset construction
 
-Python 3.10 or newer is required. From the repository root on Windows PowerShell:
+The official FinQA files are pinned to commit `0f16e2867befa6840783e58be38c9efb9229d742`. For every question, preprocessing creates:
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
+- one `pre-text-N` candidate per `pre_text` entry;
+- one `post-text-N` candidate per `post_text` entry;
+- one `table-row-N` candidate per raw table row; and
+- positive candidate IDs resolved exactly from `qa.gold_inds`.
 
-Run the checks:
+The checked-in ranking pools preserve the official 6,251/883/1,147 train/dev/test question splits. Model inputs exclude answers, programs, executable answers, and raw annotations. The validator reconstructs every source candidate, checks 100% gold mapping, IDs, formatting, duplicates, leakage, split overlap, and deterministic hashes. The 100-example manual mapping review is saved in [`outputs/manual_inspection_100.md`](outputs/manual_inspection_100.md).
 
-```powershell
-python -m pytest
-python -m finevid_distill.environment --config configs/beginner.yaml
-```
-
-The second command prints the requested device, the device actually selected from the available hardware, and the installed versions of the core packages.
-
-Execute the FinQA inspection notebook from the repository root with:
-
-```powershell
-python -m jupyter nbconvert --to notebook --execute --inplace notebooks/01_inspect_finqa.ipynb
-```
-
-## Ranking dataset
-
-Build the evidence-ranking pools from the pinned official FinQA splits:
-
-```powershell
-python src/data/build_dataset.py --seed 42
-```
-
-Each question retains every evidence unit in its report. Candidate IDs are deterministic within the report: `pre-text-N` for `pre_text[N]`, `post-text-N` for `post_text[N]`, and `table-row-N` for `table[N]`. Table rows use `column: value` pairs after the row label; the header row is joined verbatim with ` | `. The full pools are materialized here even though the later training milestone will select approximately eight candidates per question.
-
-Each JSONL record has the following model-input fields only: `question_id`, `report_id`, `question`, `candidates`, and `positive_candidate_ids`. Answers, executable answers, programs, and raw gold annotations are excluded. The original annotations are loaded separately by validation and are never model inputs.
-
-## Dataset validation
-
-Run the strict validation and regenerate its review packet:
-
-```powershell
-python src/data/validate_dataset.py --seed 42
-```
-
-The validator reconstructs every expected candidate from the raw source, checks all gold mappings, split membership and ordering, IDs, empty values, table formatting, leakage, count anomalies, duplicates, and cross-split overlap. It also rebuilds the complete dataset in a temporary directory and compares file hashes to prove deterministic regeneration.
-
-The retained duplicate-text and candidate-count findings in `outputs/data_statistics.json` are diagnostics, not dropped examples: the construction contract requires every source entry. Exact question/report ID overlap is fatal; repeated generic question wording across different reports is recorded separately. Natural answer strings can legitimately occur in source evidence, so the leakage gate is based on prohibited fields, program literals, exact answer-as-candidate values, and exact source provenance.
-
-The fixed 100-example review packet is `outputs/manual_inspection_100.md`. It is sampled deterministically from train and development only, leaving test examples uninspected. After actually reviewing all 100 mappings, record that fact explicitly with:
-
-```powershell
-python src/data/validate_dataset.py --seed 42 --manual-review-complete
-```
-
-## Shared ranking metrics
-
-All rankers call `src/finevid_distill/evaluation/metrics.py`. Scores are sorted descending, and exact ties preserve original candidate order. MRR uses the first gold fact; Recall@k gives partial credit when only some required facts are retrieved; CompleteRecall@5 is one only when every required fact is present.
-
-Run the hand-calculated metric tests with:
-
-```powershell
-python -m pytest tests/test_metrics.py
-```
+Both student treatments consume the same external `train_rows.jsonl`: 6,251 rows and 49,938 candidate occurrences, with every gold fact retained and candidate/teacher-score order verified. Its SHA-256 is `df56334db862a9e45504db7a1b0846c394e3e7fc9c1414dd89c101efa05a847e`.
 
 ## Development baselines
 
-One command evaluates all non-trained systems on development only:
-
-```powershell
-python src/evaluation/evaluate.py --models random,bm25,bge
-```
-
-Frozen BGE prefixes questions with the model's official `Represent this sentence for searching relevant passages: ` instruction, leaves candidates unprefixed, normalizes both embedding sets, and ranks by their cosine-equivalent dot product. Model revisions are pinned in `configs/beginner.yaml`.
+These results use all 883 development questions and the shared metric implementation:
 
 | Model | Recall@1 | Recall@5 | MRR | NDCG@10 | CompleteRecall@5 |
-|---|---:|---:|---:|---:|---:|
-| Random | 0.047019 | 0.209237 | 0.211481 | 0.215148 | 0.120045 |
-| BM25 | 0.354237 | 0.710526 | 0.635527 | 0.649003 | 0.577576 |
-| Frozen BGE | 0.490718 | 0.843458 | 0.789972 | 0.798706 | 0.733862 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Random | 0.0470 | 0.2092 | 0.2115 | 0.2151 | 0.1200 |
+| BM25 | 0.3542 | 0.7105 | 0.6355 | 0.6490 | 0.5776 |
+| Frozen BGE | 0.4907 | 0.8435 | 0.7900 | 0.7987 | 0.7339 |
+| Qwen teacher | 0.5021 | 0.8504 | 0.8041 | 0.8035 | 0.7407 |
 
-These are the complete 883-question development results stored in `outputs/dev_baselines.json`. No test ranking was run.
+Qwen passed the predeclared teacher gate by outperforming Frozen BGE on development MRR. Results are stored in [`outputs/dev_baselines.json`](outputs/dev_baselines.json) and [`outputs/dev_teacher_comparison.json`](outputs/dev_teacher_comparison.json).
 
-## Qwen teacher cache and GPU gate
+## Final results
 
-Qwen scoring requires a CUDA-capable runtime for this experiment. The local teacher command fails fast on CPU because the present machine lacks native BF16 and measured throughput is impractical. Open `notebooks/02_colab_teacher.ipynb` in a GPU Colab runtime. It clones the private GitHub repository into `/content/finevid-distill` for fast execution and writes persistent artifacts under `/content/drive/MyDrive/FinEvid-Distill`.
-
-Before the first run, add a read-only fine-grained GitHub token named `GITHUB_TOKEN` through Colab's key icon. The notebook removes the authenticated URL from the clone immediately after checkout so the token is not retained as the Git remote. Colab uses `requirements-colab.txt`, which deliberately does not reinstall or replace Colab's CUDA-enabled PyTorch.
-
-The notebook:
-
-1. reproduces the non-trained development baselines;
-2. writes and strictly validates `teacher_dev_scores.jsonl`;
-3. compares Qwen with frozen BGE through the shared metrics;
-4. stops if Qwen development MRR is not greater than frozen BGE MRR; and
-5. writes `teacher_train_scores.jsonl` only after that gate passes.
-
-Each cache line preserves processed candidate order and stores finite raw yes-minus-no logit differences with `temperature_applied: false`. Partial files resume at the next complete question after a Colab disconnect; an interrupted final write is discarded while all earlier validated rows are retained. If the teacher gate fails, do not train: inspect the financial retrieval instruction, table serialization, and truncation first.
-
-The complete caches were produced and independently validated against the checked-in processed splits. On all 883 development questions, Qwen passed the required quality gate:
+Development selection chose hard-label epoch 3 and distilled epoch 2. [`outputs/final_selection.json`](outputs/final_selection.json) was frozen before public-test access.
 
 | Model | Recall@1 | Recall@5 | MRR | NDCG@10 | CompleteRecall@5 |
-|---|---:|---:|---:|---:|---:|
-| Frozen BGE | 0.490718 | 0.843458 | 0.789972 | 0.798706 | 0.733862 |
-| Qwen teacher | 0.502096 | 0.850445 | 0.804112 | 0.803492 | 0.740657 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Random | 0.0459 | 0.2060 | 0.2030 | 0.2119 | 0.1255 |
+| BM25 | 0.3516 | 0.6997 | 0.6194 | 0.6362 | 0.5789 |
+| Frozen BGE | 0.5035 | 0.8315 | 0.7871 | 0.7893 | 0.7140 |
+| **Hard-label BGE** | **0.6509** | **0.9362** | **0.9342** | **0.9162** | **0.8684** |
+| Distilled BGE | 0.5690 | 0.8552 | 0.8469 | 0.8285 | 0.7350 |
+| Qwen teacher | 0.5395 | 0.8363 | 0.8136 | 0.8020 | 0.7184 |
 
-The full comparison is tracked in `outputs/dev_teacher_comparison.json`; the large score caches remain in persistent artifact storage and are intentionally excluded from Git.
+Distilled-minus-Hard MRR is **−0.0873**, so the predeclared decision rule answers **no**. Distillation still adds 0.0598 MRR over Frozen BGE. Its NDCG@10 divided by teacher NDCG@10 is 1.033, or 103.3% teacher quality retained. The exact result is [`outputs/final_test_results.json`](outputs/final_test_results.json).
 
-## Fixed shared training rows
+## Efficiency comparison
 
-Build the single file consumed by both hard-label and distilled training:
+Both models were benchmarked sequentially on the same Tesla T4. Timings are medians of five measured runs after two warm-ups. BGE's one-time 100-candidate embedding precomputation is reported separately.
 
-```powershell
-python src/data/build_training_rows.py `
-  --teacher-cache path/to/teacher_train_scores.jsonl `
-  --output data/processed/train_rows.jsonl
-```
+| Model | NDCG@10 | Parameters | Model size | Peak GPU memory | Query latency | Rank 100 | Candidates/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Qwen teacher | 0.8020 | 595.8M | 1,136 MiB | 2,068 MiB | 120.6 ms | 7,516.5 ms | 13.3 |
+| Distilled BGE | 0.8285 | 33.4M | 127 MiB | 294 MiB | 9.5 ms | 10.0 ms | 10,041.8 |
 
-For every training question, the builder retains all gold candidates, uniformly samples negatives without replacement from the same report until the row is approximately eight candidates, and applies a per-question seed-42 shuffle. It joins candidate text and raw teacher scores by candidate ID, then validates every output field against both source files. Hard-label training ignores the stored teacher scores; the later distilled treatment must read the same rows and ordering.
+Distilled BGE has 17.9× fewer parameters, uses about 7× less peak GPU memory, and ranks 100 pre-encoded candidates about 755× faster. Candidate precomputation took 211.5 ms. Full measurements are in [`outputs/efficiency_results.json`](outputs/efficiency_results.json).
 
-The complete seed-42 artifact contains 6,251 rows and 49,938 candidate occurrences (minimum 6, maximum 9, mean 7.988802). Its SHA-256 is `df56334db862a9e45504db7a1b0846c394e3e7fc9c1414dd89c101efa05a847e`. The generated JSONL contains teacher outputs and is therefore ignored by Git along with the full caches.
+## Example success and failure cases
 
-## Hard-label BGE-small training
+**Hard-label success — multi-fact retrieval.** For “what percentage of 2005 industrial packaging sales are containerboard sales?”, Hard-label BGE ranks the report sales denominator first and containerboard sales second. Frozen and Distilled BGE place the denominator eighth; Qwen places it twelfth. Direct gold supervision learned to retrieve the generic total needed alongside the named numerator.
 
-`src/training/train_hard_labels.py` trains BGE-small with normalized query and candidate embeddings. Questions retain the official BGE query instruction; candidates remain uninstructed. Within each fixed row, the target distribution assigns equal probability to every gold candidate and zero to every negative. The matched experiment uses listwise cross-entropy over cosine scores divided by student temperature **0.05**.
+**Distillation failure — inherited teacher preference.** For the 2004 money-pool percentage question, Hard-label BGE ranks all three annotated facts in its top three. Qwen puts the numeric receivables row ninth and Distilled BGE puts it twelfth, while both emphasize related prose. Six of the 20 sampled distilled failures show this teacher–student miss with a hard-label success.
 
-The current GPU entry point is `notebooks/04_colab_distilled.ipynb`, which runs both matched treatments. The earlier `03_colab_hard_label.ipynb` documents the original temperature-1 run. For the new control, run:
+**Evaluation failure — annotation noise.** One pension-liability question includes an unrelated CDO sentence as gold evidence. Every model retrieves the numeric pension row first but fails `CompleteRecall@5` because the unrelated sentence is absent. Overall, 46 of 80 reviewed failures contain redundant, irrelevant, or internally inconsistent annotations.
 
-```powershell
-python src/training/train_hard_labels.py `
-  --train-rows data/processed/train_rows.jsonl `
-  --dev-data data/processed/dev.jsonl `
-  --device cuda
-```
+The complete 80-case audit is [`outputs/error_analysis.csv`](outputs/error_analysis.csv); findings and failure counts are summarized in [`docs/error_analysis.md`](docs/error_analysis.md).
 
-The new default output is `outputs/checkpoints/hard_label_student_tau005/`, preserving `hard_label_student/`. Each completed epoch records loss components, development metrics, learning rate, mean pre-clipping gradient norm, optimizer steps, FP16 loss-scale overflow retries, and elapsed time. Its checkpoint contains the Sentence Transformers model, optimizer, scheduler, gradient-scaler and Python/NumPy/PyTorch RNG states. A scaled FP16 overflow backs the loss scale off and retries the same batch without advancing the optimizer or scheduler; a genuinely non-finite unscaled gradient still aborts before any update. Completed epoch directories are published atomically; on `--resume`, their records reconstruct the latest/best pointers and history if a disconnect interrupted those writes. Incomplete directories are preserved under an `.abandoned-*` name and never loaded. At completion the best model is loaded from disk and reevaluated; training fails if the reloaded development metrics change.
+## Artifact storage
 
-Resume requires identical configuration, data hashes, and implementation hash. The sole exception is a trainer-code update before the first checkpoint: the uncheckpointed attempt is restarted from the fixed seed and its previous metadata is preserved under `abandoned_runs/`. A legacy temperature-1 run cannot be resumed through the new trainer; retain its original artifacts and use a separate output directory for the matched experiment.
-
-Trained checkpoints can also be evaluated directly through the same command and metric implementation as every baseline:
-
-```powershell
-python src/evaluation/evaluate.py `
-  --models checkpoint `
-  --checkpoint outputs/checkpoints/hard_label_student_tau005/epochs/epoch-001/model `
-  --checkpoint-label "Hard-label BGE-small" `
-  --output outputs/hard_label_dev.json
-```
-
-Only development evaluation is available during training. The test split remains untouched.
-
-## Original hard-label run (temperature 1)
-
-The downloaded Colab records, now tracked under `outputs/hard_label_run/`, confirm all three epochs completed on 6,251 training and 883 development questions, with 782 optimizer steps per epoch (2,346 total). Both dataset hashes match the checked-in development pool and shared training rows. Epoch 1 was selected by development MRR and its reloaded metrics match exactly. These are historical results, not the matched-temperature control for Milestone 10.
-
-| Epoch | Training loss | Development MRR | Recall@5 |
-|---|---:|---:|---:|
-| 1 (selected) | 1.532174 | 0.762280 | 0.806505 |
-| 2 | 1.409886 | 0.739014 | 0.803438 |
-| 3 | 1.381780 | 0.748393 | 0.813300 |
-
-Frozen BGE development MRR is 0.789972. The original fine-tuning run therefore reduced MRR by 0.027693. This motivates checking initial-model evaluation and using an identically scaled hard-label control; it does not establish the cause of the regression.
-
-## Milestone 10: distilled student and matched control
-
-Both treatments start independently from the pinned pretrained BGE revision, consume the same shared rows, and use the same student temperature, seed, learning rate, schedule, batching, maximum sequence length, and training budget. The temperature-1 result remains an earlier diagnostic comparison. Changing student temperature for only the distilled model would confound the supervision comparison.
-
-For each question's valid candidates:
+Source, tests, processed ranking pools, aggregate results, and error analysis are tracked in Git. Generated teacher caches, shared training rows, and checkpoint directories are stored outside ordinary Git history because they are large and include optimizer state.
 
 ```text
-p_teacher = softmax(detached_raw_teacher_scores / 0.3)
-log_p_student = log_softmax(normalized_cosine_scores / 0.05)
-gold_target = positive_mask / sum(positive_mask)
-L_KL = sum(p_teacher * (log(p_teacher) - log_p_student))
-L_hard = -sum(gold_target * log_p_student)
-L_distilled = mean_questions(L_KL + 0.1 * L_hard)
-L_control = mean_questions(L_hard)
+FinEvid-Distill/
+├── processed_data/train_rows.jsonl
+├── teacher_scores/
+│   ├── teacher_train_scores.jsonl
+│   ├── teacher_dev_scores.jsonl
+│   └── teacher_test_scores.jsonl
+└── checkpoints/
+    ├── hard_label_student_tau005/   # selected epoch 3
+    └── distilled_student/           # selected epoch 2
 ```
 
-No additional temperature-squared multiplier is applied. Probability and loss calculations use FP32. Valid candidates are selected before softmax; padded positions cannot affect normalization or gradients. The teacher is detached. Genuinely non-finite valid scores, losses, or unscaled gradients stop training before the optimizer update; recoverable FP16 loss-scale overflow instead lowers the scale and retries without dropping the batch. KL is summed along each row's candidate dimension and averaged equally across questions. The shared trainer retains question-only BGE instructions and normalized embeddings.
+[`artifacts/manifest.json`](artifacts/manifest.json) records tracked hashes, external paths, cache hashes, and selected models. Run `python src/evaluation/audit_repository.py --artifact-root /path/to/FinEvid-Distill` to validate candidate ordering, training-row identity, complete run metadata, and selected checkpoint directories.
 
-This transfers the teacher distribution over each approximately eight-candidate training row, not the full report pool. The full report pool remains the evaluation scope. At teacher temperature 0.3, 70.7% of the 6,251 cached training rows assign over 99% probability to one candidate. The trainer logs teacher entropy and top probability alongside unweighted KL, hard CE, and weighted total loss. Keep these starting settings fixed until the pipeline is complete.
+## Reproduction commands
 
-Run the distilled treatment:
+Python 3.10 or newer is required.
 
-```powershell
-python src/training/train_distilled.py `
-  --train-rows data/processed/train_rows.jsonl `
-  --dev-data data/processed/dev.jsonl `
-  --device cuda
+```bash
+python -m venv .venv
+python -m pip install -e ".[dev]"
+python src/data/download_finqa.py
+python src/data/build_dataset.py --seed 42
+python src/data/validate_dataset.py --seed 42
+pytest
+python -m finevid_distill.environment --config configs/beginner.yaml
+python src/evaluation/evaluate.py --models random,bm25,bge
+python src/evaluation/audit_repository.py
 ```
 
-Its default directory is `outputs/checkpoints/distilled_student/`. Before training, each run writes `initial_development.json` using the same evaluator as checkpoint selection. Each run writes a hashed `run_config.json`, epoch metrics and checkpoints, `training_history.json`, `latest.json`, `best.json`, and `best_reload_verification.json`. CPU diagnostics require explicit `--allow-cpu --mixed-precision none --limit-train N --limit-dev N`; their verification records are marked `diagnostic_run: true`.
+Create the shared rows after teacher scoring:
 
-After both full runs finish:
-
-```powershell
-python src/evaluation/compare_students.py `
-  --hard-dir outputs/checkpoints/hard_label_student_tau005 `
-  --distilled-dir outputs/checkpoints/distilled_student `
-  --output outputs/dev_student_comparison.json
+```bash
+python src/data/build_training_rows.py \
+  --teacher-cache /path/to/FinEvid-Distill/teacher_scores/teacher_train_scores.jsonl \
+  --output /path/to/FinEvid-Distill/processed_data/train_rows.jsonl
 ```
 
-The comparison checks matching controls and initial metrics, complete epoch/step budgets, best-by-MRR selection, and consistent reload verification. It reports every development metric and the Distilled-minus-Hard differences. Diagnostic runs are rejected unless explicitly allowed; they are never labelled as full experiments. This is a development comparison, not final test evidence or a significance claim.
+GPU work is organized into thin Colab notebooks that call the tested scripts:
 
-The complete seed-42 GPU runs selected hard-label epoch 3 (development MRR 0.926379) and distilled epoch 2 (development MRR 0.840338). Both checkpoints reloaded exactly. `outputs/final_selection.json` records these decisions, input and implementation hashes, the public-test file hash, and the prohibition on further hyperparameter search. It was frozen before public-test scoring.
+1. [`notebooks/02_colab_teacher.ipynb`](notebooks/02_colab_teacher.ipynb) caches Qwen train/dev scores and applies the teacher gate.
+2. [`notebooks/04_colab_distilled.ipynb`](notebooks/04_colab_distilled.ipynb) trains the matched hard-label and distilled students and saves resumable checkpoints.
+3. [`notebooks/05_colab_final_evaluation.ipynb`](notebooks/05_colab_final_evaluation.ipynb) freezes selection, caches test teacher scores, runs the six-model test comparison, and benchmarks efficiency.
+4. [`notebooks/06_colab_error_analysis.ipynb`](notebooks/06_colab_error_analysis.ipynb) regenerates rankings and samples the post-test failure-review packet.
 
-## Milestone 11: locked final comparison
+With the external artifacts available, reproduce the final table in one command:
 
-Public-test teacher scoring is disabled unless the frozen selection validates against both complete student run directories. Once frozen, cache the test teacher logits resumably:
-
-```powershell
-python src/data/cache_teacher_scores.py `
-  --splits test `
-  --processed-dir data/processed `
-  --output-dir path/to/teacher_scores `
-  --final-selection outputs/final_selection.json `
-  --hard-dir path/to/checkpoints/hard_label_student_tau005 `
-  --distilled-dir path/to/checkpoints/distilled_student `
-  --device cuda
+```bash
+python src/evaluation/final_comparison.py \
+  --selection outputs/final_selection.json \
+  --teacher-cache /path/to/FinEvid-Distill/teacher_scores/teacher_test_scores.jsonl \
+  --hard-dir /path/to/FinEvid-Distill/checkpoints/hard_label_student_tau005 \
+  --distilled-dir /path/to/FinEvid-Distill/checkpoints/distilled_student \
+  --device cuda \
+  --output reproduced_final_test_results.json
 ```
 
-One command then reproduces the six-model test table from the saved selected checkpoints and raw teacher cache:
+## Limitations
 
-```powershell
-python src/evaluation/final_comparison.py `
-  --selection outputs/final_selection.json `
-  --test-data data/processed/test.jsonl `
-  --teacher-cache path/to/teacher_scores/teacher_test_scores.jsonl `
-  --hard-dir path/to/checkpoints/hard_label_student_tau005 `
-  --distilled-dir path/to/checkpoints/distilled_student `
-  --device cuda `
-  --output outputs/final_test_results.json
-```
+- This is one seed, one dataset, one teacher, one student, and one training budget; it is not a general distillation benchmark.
+- Training distills over approximately eight sampled candidates per question, while evaluation ranks the full report pool.
+- At teacher temperature 0.3, 70.7% of training rows place over 99% probability on one candidate, limiting the information in the soft distribution.
+- Qwen only narrowly beats Frozen BGE on development and is much weaker than Hard-label BGE on test, constraining what it can teach.
+- Strict candidate-ID `CompleteRecall@5` penalizes semantically duplicate and irrelevant gold annotations; 46/80 reviewed failures were annotation-driven.
+- Efficiency numbers come from one Tesla T4 and will vary by hardware and software version.
+- No confidence intervals or multi-seed significance estimates are reported.
 
-The command validates the fixed 1,147-question test SHA-256, checkpoint provenance, development selection, teacher candidate ordering, and all six result rows. It reports `Distilled BGE NDCG@10 / Qwen teacher NDCG@10` as teacher quality retained and answers the primary MRR comparison directly.
+## Planned intermediate extensions
 
-### Final test result
-
-| Model | Recall@1 | Recall@5 | MRR | NDCG@10 | CompleteRecall@5 |
-|---|---:|---:|---:|---:|---:|
-| Random | 0.045851 | 0.205950 | 0.202991 | 0.211930 | 0.125545 |
-| BM25 | 0.351591 | 0.699666 | 0.619426 | 0.636191 | 0.578901 |
-| Frozen BGE | 0.503545 | 0.831495 | 0.787082 | 0.789331 | 0.714037 |
-| Hard-label BGE | **0.650908** | **0.936225** | **0.934211** | **0.916221** | **0.868352** |
-| Distilled BGE | 0.568999 | 0.855246 | 0.846864 | 0.828457 | 0.734961 |
-| Qwen teacher | 0.539509 | 0.836254 | 0.813630 | 0.802022 | 0.718396 |
-
-Distilled minus Hard MRR is -0.087347, so the predeclared decision rule answers **no**. Distillation does improve over frozen BGE by 0.059782 MRR. Teacher quality retained is 1.032961 (103.30%): the distilled student's NDCG@10 exceeds the teacher's, even though it remains well below the hard-label student's NDCG@10.
-
-## Milestone 12: same-hardware efficiency benchmark
-
-After final quality evaluation, benchmark Qwen and the selected distilled checkpoint in one process on one CUDA device:
-
-```powershell
-python src/evaluation/benchmark_efficiency.py `
-  --selection outputs/final_selection.json `
-  --test-data data/processed/test.jsonl `
-  --quality-results outputs/final_test_results.json `
-  --hard-dir path/to/checkpoints/hard_label_student_tau005 `
-  --distilled-dir path/to/checkpoints/distilled_student `
-  --device cuda `
-  --output outputs/efficiency_results.json
-```
-
-The deterministic benchmark sample contains 100 unique processed FinQA candidates. It reports parameter count, parameter-and-buffer bytes, peak allocated CUDA memory, median candidate precomputation time, query latency, online rank-100 latency, and candidates per second. BGE candidate embeddings are normalized and precomputed; that cost is reported separately. Qwen cannot precompute query-independent candidate embeddings, so its rank-100 timing cross-encodes all pairs. The resulting table combines test NDCG@10 with efficiency.
-
-### Quality–efficiency result
-
-All timings are medians from five measured runs after warm-up on the same Tesla T4.
-
-| Model | Test NDCG@10 | Parameters | Model MiB | Peak GPU MiB | Candidate precompute | Query latency | Rank 100 | Candidates/s |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Qwen teacher | 0.802022 | 595,776,512 | 1,136.35 | 2,067.97 | n/a | 120.628 ms | 7,516.459 ms | 13.30 |
-| Distilled BGE | 0.828457 | 33,360,000 | 127.27 | 293.83 | 211.501 ms | 9.473 ms | 9.958 ms | 10,041.79 |
-
-With candidate embeddings precomputed, distilled BGE ranks 100 candidates about 755 times faster, uses about 7 times less peak GPU memory, and has about 17.9 times fewer parameters. Its one-time 100-candidate precomputation cost is reported separately and is not included in the online rank-100 latency.
-
-### Running in Colab without publishing local changes
-
-Build a portable source bundle from the repository root:
-
-```powershell
-python scripts/package_colab.py --output outputs/finevid_milestone10_source.zip
-```
-
-Open `notebooks/04_colab_distilled.ipynb` in Colab, select a GPU runtime, and run its cells in order. Upload that bundle when prompted. The notebook verifies its manifest, installs the bundled source, tests it, rebuilds shared rows from the existing Drive teacher cache, trains both treatments, validates the comparison, and downloads a small review ZIP. The bundle contains source and train/development inputs; it omits credentials, raw data, teacher caches, model checkpoints, and the test ranking file. Existing teacher caches must remain under `MyDrive/FinEvid-Distill/teacher_scores/`.
-
-For the final comparison and benchmark, create the separately gated bundle only after `outputs/final_selection.json` is frozen:
-
-```powershell
-python scripts/package_colab.py `
-  --include-final-test `
-  --output outputs/finevid_final_source.zip
-```
-
-Open `notebooks/05_colab_final_evaluation.ipynb`, upload that final bundle, and run its cells in order. Qwen test scoring is resumable. The final evaluator releases Qwen before loading BGE, and the benchmark loads the two models sequentially.
-
-## Milestone 13: failure analysis
-
-Failure analysis uses CompleteRecall@5 as its explicit case-level failure definition: a model fails when at least one required gold fact is absent from its first five results. The aggregate test results therefore contain 328 Frozen BGE failures, 151 Hard-label BGE failures, 304 Distilled BGE failures, and 323 Qwen teacher failures. These are full-test counts; the qualitative sample must not be treated as an estimate of prevalence.
-
-Create the post-test review bundle:
-
-```powershell
-python scripts/package_colab.py `
-  --include-final-test `
-  --include-error-analysis `
-  --output outputs/finevid_error_analysis_source.zip
-```
-
-Open `notebooks/06_colab_error_analysis.ipynb` and upload that bundle. The notebook never loads Qwen: it reuses `teacher_test_scores.jsonl`, scores the three BGE variants, verifies Qwen exactly, and records any BGE CPU/CUDA ranking drift under a strict two-question-equivalent bound before downloading `milestone13_review_packet.zip`. Model score caches are saved after each model, so a disconnected run resumes without repeating completed scoring. A CPU runtime is valid; a GPU only makes BGE encoding faster.
-
-The packet contains exactly 80 genuine failure instances: 20 per model. Half of each sample is prioritized for a contrast with the hard-label or distilled student when enough such cases exist, and the remainder uses deterministic seed-42 sampling. Each instance includes the question, gold candidates, original `gold_inds`, program, answer, gold ranks, top-ten result text and scores, and peer-model rankings. Human review assigns exactly one of the nine declared categories plus a concrete note to every instance. This is post-hoc interpretation only: no model, hyperparameter, or test result may be changed afterward.
-
-## Milestone status
-
-- [x] Milestone 0: experiment question, comparisons, metrics, and restrictions are fixed.
-- [x] Milestone 1: installable project structure, dependency specification, environment report, and smoke tests are present.
-- [x] Milestone 2: the executable FinQA inspection notebook documents the raw schema and evidence mappings without loading test examples.
-- [x] Milestone 3: the official FinQA splits are converted to deterministic, fully mapped ranking pools.
-- [x] Milestone 4: strict validation passes and all 100 train/development audit examples have been manually reviewed.
-- [x] Milestone 5: shared metrics agree with hand-calculated single- and multi-positive cases, including stable score ties.
-- [x] Milestone 6: Random, BM25, and frozen BGE baselines are evaluated on all 883 development questions.
-- [x] Milestone 7: complete training/development teacher caches validate, and Qwen development MRR 0.804112 exceeds frozen BGE MRR 0.789972.
-- [x] Milestone 8: one deterministic 6,251-row artifact retains every gold fact and exactly aligns candidate, label, text, and teacher-score order.
-- [x] Milestone 9: the original temperature-1 hard-label GPU run completed all three epochs; its best checkpoint was reloaded and verified.
-- [x] Milestone 10: both matched GPU treatments completed all epochs; hard-label epoch 3 and distilled epoch 2 were reloaded, compared, and frozen.
-- [x] Milestone 11: the locked six-model comparison completed on all 1,147 test questions and answers the research question.
-- [x] Milestone 12: Qwen and distilled BGE were benchmarked sequentially on the same Tesla T4 and the quality–efficiency table is saved.
-- [x] Milestone 13: 80 sampled failures were manually classified in `outputs/error_analysis.csv`; model-level findings and annotation caveats are documented in `docs/error_analysis.md`.
+1. Audit and merge semantically equivalent gold candidates, then report both original and equivalence-aware complete recall.
+2. Repeat the fixed comparison over multiple seeds and attach confidence intervals to treatment differences.
+3. Replace uniform negatives with deterministic hard negatives while keeping identical rows across treatments.
+4. Distill over larger or full-report candidate sets to reduce the train/evaluation pool mismatch.
+5. Pre-register a small development-only study of teacher temperature and hard-label weight before any new test evaluation.
+6. Improve table-row context and test a stronger teacher only as separately named experiments, leaving this beginner result unchanged.

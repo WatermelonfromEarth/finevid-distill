@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "experiment": "finqa_report_reranking_beginner",
+  "tracked_files": [
+    {
+      "path": "data/processed/train.jsonl",
+      "sha256": "e10e6dcc32ace8a797e91855b256578dc473e894eafd413a976f92a953ddc624"
+    },
+    {
+      "path": "data/processed/dev.jsonl",
+      "sha256": "1102d2213c94acd3904842c691d1baa014d6549758a43bbf01f359b0657ff6b4"
+    },
+    {
+      "path": "data/processed/test.jsonl",
+      "sha256": "14b7b00bced86a9a37a040f0c2fc14ab1cdef7c43f895e21ff4da54cb668b975"
+    },
+    {
+      "path": "outputs/data_statistics.json",
+      "sha256": "a637f33bc58e2a986def6063401eea8b710f98e3dd0a40eda4a2cf04b50244da"
+    },
+    {
+      "path": "outputs/manual_inspection_100.md",
+      "sha256": "146166f0681b58dd64db22a033565774a9fea016dbe3928bbd65f8b03cdc444a"
+    },
+    {
+      "path": "outputs/dev_baselines.json",
+      "sha256": "7c241d12804e0bff3a01829aef861100910967a0bb8b9a254582219732854721"
+    },
+    {
+      "path": "outputs/dev_teacher_comparison.json",
+      "sha256": "4908f349717333deb3866570b734a090544b63a6147410dcffbadf864f8072bd"
+    },
+    {
+      "path": "outputs/final_selection.json",
+      "sha256": "eaeba9b9a09ed30960ffe71bebaf4e5d1ab5dff80b6b90cc70a4a57d52a17395"
+    },
+    {
+      "path": "outputs/final_test_results.json",
+      "sha256": "dab921def998aa9358101773c2b3f1d1090027710bb8f72c94bf812079eb5f96"
+    },
+    {
+      "path": "outputs/efficiency_results.json",
+      "sha256": "991d7fc56f4ee0d22d7c0b6e4f91c932ade67ad837144c5bd60a09b961367db0"
+    },
+    {
+      "path": "outputs/error_analysis.csv",
+      "sha256": "e27a7b9e1574cf5e7ce1863aabbe4908f9455129a3ee06bfdb685c7b37945938"
+    }
+  ],
+  "external_artifacts": {
+    "storage_layout": "FinEvid-Distill",
+    "training_rows": {
+      "path": "processed_data/train_rows.jsonl",
+      "sha256": "df56334db862a9e45504db7a1b0846c394e3e7fc9c1414dd89c101efa05a847e"
+    },
+    "teacher_scores": {
+      "train": {
+        "path": "teacher_scores/teacher_train_scores.jsonl",
+        "sha256": "bd1a38056ffa59f6e9f2407e1bc36594d7a4a63bf849fa7d598d5cd5b99e04c1"
+      },
+      "dev": {
+        "path": "teacher_scores/teacher_dev_scores.jsonl",
+        "sha256": "0ecdfc7b5c0b238fdb981af609aadb2e1491b39bfacf732dbe81972c70da9fab"
+      },
+      "test": {
+        "path": "teacher_scores/teacher_test_scores.jsonl",
+        "validated_by": "outputs/final_test_results.json and the strict cache validator"
+      }
+    },
+    "checkpoints": {
+      "hard_label": {
+        "run_path": "checkpoints/hard_label_student_tau005",
+        "selected_model": "epochs/epoch-003/model",
+        "selected_by": "development MRR"
+      },
+      "distilled": {
+        "run_path": "checkpoints/distilled_student",
+        "selected_model": "epochs/epoch-002/model",
+        "selected_by": "development MRR"
+      }
+    }
+  }
+}
