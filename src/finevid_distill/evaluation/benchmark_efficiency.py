@@ -123,6 +123,53 @@ def format_quality_efficiency_table(models: Mapping[str, Mapping[str, Any]]) -> 
     return "\n".join(lines)
 
 
+def validate_efficiency_payload(
+    payload: Mapping[str, Any], quality_results: Mapping[str, Any]
+) -> None:
+    if payload.get("schema_version") != 1 or payload.get("identical_hardware_verified") is not True:
+        raise ValueError("Efficiency result schema or same-hardware verification is invalid.")
+    hardware = payload.get("hardware", {})
+    if not str(hardware.get("device", "")).startswith("cuda:") or not hardware.get("device_name"):
+        raise ValueError("Efficiency result does not identify a CUDA device.")
+    if not isinstance(hardware.get("total_memory_bytes"), int) or hardware["total_memory_bytes"] <= 0:
+        raise ValueError("Efficiency result has invalid device memory.")
+    sample = payload.get("sample", {})
+    if sample.get("candidate_count") != BENCHMARK_CANDIDATES or len(
+        str(sample.get("sample_sha256", ""))
+    ) != 64:
+        raise ValueError("Efficiency benchmark sample is invalid.")
+    models = payload.get("models", {})
+    if set(models) != {"Qwen teacher", "Distilled BGE"}:
+        raise ValueError("Efficiency result must compare Qwen teacher and Distilled BGE.")
+    for label, values in models.items():
+        for key in (
+            "parameter_count", "model_size_bytes", "peak_memory_bytes",
+            "query_latency_seconds", "rank_100_time_seconds", "candidates_per_second",
+        ):
+            value = values.get(key)
+            if not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                raise ValueError(f"Invalid {key} for {label}.")
+        expected_rate = BENCHMARK_CANDIDATES / values["rank_100_time_seconds"]
+        if not math.isclose(values["candidates_per_second"], expected_rate, rel_tol=1e-12):
+            raise ValueError(f"Candidates/second is inconsistent for {label}.")
+        expected_ndcg = quality_results["models"][label]["ndcg_at_10"]
+        if values.get("ndcg_at_10") != expected_ndcg:
+            raise ValueError(f"Quality and efficiency NDCG differ for {label}.")
+    teacher, student = models["Qwen teacher"], models["Distilled BGE"]
+    if teacher.get("candidate_precomputation_supported") is not False or teacher.get(
+        "candidate_encoding_time_seconds"
+    ) is not None:
+        raise ValueError("Teacher candidate-precomputation fields are invalid.")
+    if student.get("candidate_precomputation_supported") is not True:
+        raise ValueError("Student must report separate candidate precomputation.")
+    if not isinstance(student.get("candidate_encoding_time_seconds"), (int, float)) or not math.isfinite(
+        student["candidate_encoding_time_seconds"]
+    ) or student["candidate_encoding_time_seconds"] <= 0:
+        raise ValueError("Student candidate precomputation time is invalid.")
+    if payload.get("teacher_quality_retained") != quality_results.get("teacher_quality_retained"):
+        raise ValueError("Quality-retained values differ between final and efficiency results.")
+
+
 def _cuda_context(device: str) -> tuple[Callable[[], None], dict[str, Any]]:
     import torch
 
@@ -347,6 +394,7 @@ def main(argv: list[str] | None = None) -> int:
         "models": models,
         "teacher_quality_retained": quality["teacher_quality_retained"],
     }
+    validate_efficiency_payload(payload, quality)
     write_json(payload, args.output)
     print(format_quality_efficiency_table(models))
     print(f"\nSaved: {args.output}")

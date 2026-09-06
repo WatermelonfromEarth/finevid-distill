@@ -10,11 +10,13 @@ from finevid_distill.evaluation.benchmark_efficiency import (
     build_benchmark_sample,
     format_quality_efficiency_table,
     model_statistics,
+    validate_efficiency_payload,
 )
 from finevid_distill.evaluation.final_comparison import (
     FINAL_MODEL_LABELS,
     build_final_payload,
     evaluate_final_rankers,
+    validate_final_payload,
 )
 from finevid_distill.evaluation.final_selection import (
     EXPECTED_TEST_DATA_SHA256,
@@ -87,6 +89,25 @@ def test_final_payload_calculates_teacher_quality_retained() -> None:
     assert payload["teacher_quality_retained"] == pytest.approx(0.75)
     assert payload["distilled_minus_hard_mrr"] == pytest.approx(-0.1)
     assert payload["distillation_improves_over_hard_label"] is False
+
+
+def test_tracked_final_and_efficiency_results_validate() -> None:
+    final_path = ROOT / "outputs/final_test_results.json"
+    efficiency_path = ROOT / "outputs/efficiency_results.json"
+    if not final_path.exists() or not efficiency_path.exists():
+        pytest.skip("Final outputs are absent from development-only Colab bundles.")
+    final = json.loads(final_path.read_text())
+    efficiency = json.loads(efficiency_path.read_text())
+
+    validate_final_payload(final)
+    validate_efficiency_payload(efficiency, final)
+
+    assert final["distillation_improves_over_hard_label"] is False
+    assert final["distilled_minus_hard_mrr"] < 0
+    assert final["teacher_quality_retained"] > 1
+    assert efficiency["models"]["Distilled BGE"]["candidates_per_second"] > (
+        efficiency["models"]["Qwen teacher"]["candidates_per_second"]
+    )
 
 
 def test_public_test_teacher_cache_requires_frozen_selection(tmp_path: Path) -> None:

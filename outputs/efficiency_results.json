@@ -1,0 +1,59 @@
+{
+  "hardware": {
+    "compute_capability": [
+      7,
+      5
+    ],
+    "cuda_version": "12.8",
+    "device": "cuda:0",
+    "device_name": "Tesla T4",
+    "torch_version": "2.11.0+cu128",
+    "total_memory_bytes": 15637086208
+  },
+  "identical_hardware_verified": true,
+  "methodology": {
+    "measured_repeats": 5,
+    "peak_memory_definition": "maximum CUDA bytes allocated with the model resident",
+    "reported_statistic": "median",
+    "student_online_ranking": "precomputed normalized candidates plus query encode and cosine ranking",
+    "teacher_online_ranking": "cross-encode all query-candidate pairs",
+    "warmup_runs": 2
+  },
+  "models": {
+    "Distilled BGE": {
+      "candidate_encoding_time_seconds": 0.21150076399999307,
+      "candidate_precomputation_supported": true,
+      "candidate_precompute_peak_memory_bytes": 308104192,
+      "candidates_per_second": 10041.788904407054,
+      "model_size_bytes": 133448192,
+      "ndcg_at_10": 0.8284574062617666,
+      "online_rank_peak_memory_bytes": 143440384,
+      "parameter_count": 33360000,
+      "peak_memory_bytes": 308104192,
+      "query_latency_definition": "encode one instructed query",
+      "query_latency_seconds": 0.00947320800014495,
+      "rank_100_time_seconds": 0.009958385000118142,
+      "trainable_parameter_count": 33360000
+    },
+    "Qwen teacher": {
+      "candidate_encoding_time_seconds": null,
+      "candidate_precomputation_supported": false,
+      "candidates_per_second": 13.304136357730398,
+      "model_size_bytes": 1191553536,
+      "ndcg_at_10": 0.8020219230571696,
+      "parameter_count": 595776512,
+      "peak_memory_bytes": 2168424448,
+      "query_latency_definition": "one query-candidate cross-encoder score",
+      "query_latency_seconds": 0.12062840599992342,
+      "rank_100_time_seconds": 7.5164593409999725,
+      "trainable_parameter_count": 595776512
+    }
+  },
+  "sample": {
+    "candidate_count": 100,
+    "question_id": "ETR/2016/page_23.pdf-2",
+    "sample_sha256": "71dc452409ea5816bf4a8e2ba601edb5f93c855217a2f594449c577515f095a8"
+  },
+  "schema_version": 1,
+  "teacher_quality_retained": 1.0329610481267513
+}

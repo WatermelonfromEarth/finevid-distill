@@ -24,6 +24,8 @@ outputs/*
 !outputs/dev_baselines.json
 !outputs/dev_teacher_comparison.json
 !outputs/final_selection.json
+!outputs/final_test_results.json
+!outputs/efficiency_results.json
 !outputs/hard_label_run/
 !outputs/hard_label_run/*.json
 notebooks/.ipynb_checkpoints/

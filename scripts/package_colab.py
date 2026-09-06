@@ -30,7 +30,11 @@ def package_project(root: Path, output: Path, *, include_final_test: bool = Fals
     if include_final_test:
         paths.update(
             root / name
-            for name in ("data/processed/test.jsonl",)
+            for name in (
+                "data/processed/test.jsonl",
+                "outputs/final_test_results.json",
+                "outputs/efficiency_results.json",
+            )
         )
         purpose = "FinEvid-Distill Milestones 11-12 locked final Colab bundle"
     manifest = {

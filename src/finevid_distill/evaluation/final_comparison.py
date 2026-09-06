@@ -24,6 +24,7 @@ from finevid_distill.evaluation.final_selection import (
     sha256_file,
     validate_selection_against_runs,
 )
+from finevid_distill.evaluation.metrics import METRIC_NAMES
 from finevid_distill.models.bge_ranker import BGE_MODEL_ID, BGE_MODEL_REVISION, BGERanker
 from finevid_distill.models.bm25_ranker import BM25Ranker
 from finevid_distill.models.random_ranker import RandomRanker
@@ -89,6 +90,41 @@ def build_final_payload(
             > float(results["Hard-label BGE"]["mrr"])
         ),
     }
+
+
+def validate_final_payload(payload: Mapping[str, Any]) -> None:
+    required = {
+        "split": "test",
+        "question_count": EXPECTED_TEST_QUESTIONS,
+        "test_data_sha256": EXPECTED_TEST_DATA_SHA256,
+        "seed": 42,
+        "selection_frozen_before_test": True,
+        "primary_metric": "mrr",
+        "tie_policy": "stable_original_candidate_order",
+        "recall_definition": "fraction_of_all_gold_candidates_retrieved",
+    }
+    if any(payload.get(key) != value for key, value in required.items()):
+        raise ValueError("Final result provenance or evaluation policy is invalid.")
+    models = payload.get("models", {})
+    if set(models) != set(FINAL_MODEL_LABELS):
+        raise ValueError("Final result does not contain exactly the six locked models.")
+    for label in FINAL_MODEL_LABELS:
+        metrics = models[label]
+        if set(metrics) != set(METRIC_NAMES) or not all(
+            isinstance(value, (int, float)) and math.isfinite(value) and 0 <= value <= 1
+            for value in metrics.values()
+        ):
+            raise ValueError(f"Invalid final metrics for {label}.")
+    selection_sha = payload.get("selection_sha256")
+    if not isinstance(selection_sha, str) or len(selection_sha) != 64:
+        raise ValueError("Final result selection SHA-256 is invalid.")
+    expected = build_final_payload(
+        {label: models[label] for label in FINAL_MODEL_LABELS},
+        question_count=EXPECTED_TEST_QUESTIONS,
+        selection_sha256=selection_sha,
+    )
+    if dict(payload) != expected:
+        raise ValueError("Final calculated fields are inconsistent with the model metrics.")
 
 
 def _release_accelerator_memory() -> None:
@@ -187,6 +223,7 @@ def main(argv: list[str] | None = None) -> int:
         question_count=len(records),
         selection_sha256=sha256_file(args.selection),
     )
+    validate_final_payload(payload)
     write_json(payload, args.output)
     print()
     print(format_markdown_table(results))

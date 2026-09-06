@@ -1,0 +1,59 @@
+{
+  "distillation_improves_over_hard_label": false,
+  "distilled_minus_hard_mrr": -0.08734726803986781,
+  "models": {
+    "BM25": {
+      "complete_recall_at_5": 0.5789014821272885,
+      "mrr": 0.619425740150221,
+      "ndcg_at_10": 0.636190622376192,
+      "recall_at_1": 0.3515911072362685,
+      "recall_at_5": 0.6996657948270851
+    },
+    "Distilled BGE": {
+      "complete_recall_at_5": 0.7349607672188317,
+      "mrr": 0.8468641323005649,
+      "ndcg_at_10": 0.8284574062617666,
+      "recall_at_1": 0.5689988375472246,
+      "recall_at_5": 0.8552455681487939
+    },
+    "Frozen BGE": {
+      "complete_recall_at_5": 0.7140366172624237,
+      "mrr": 0.787081714453631,
+      "ndcg_at_10": 0.7893312657800898,
+      "recall_at_1": 0.5035454809648359,
+      "recall_at_5": 0.8314952048823017
+    },
+    "Hard-label BGE": {
+      "complete_recall_at_5": 0.8683522231909329,
+      "mrr": 0.9342114003404327,
+      "ndcg_at_10": 0.9162208091610827,
+      "recall_at_1": 0.6509081662307469,
+      "recall_at_5": 0.9362249346120313
+    },
+    "Qwen teacher": {
+      "complete_recall_at_5": 0.7183958151700087,
+      "mrr": 0.8136296790661117,
+      "ndcg_at_10": 0.8020219230571696,
+      "recall_at_1": 0.5395088637024121,
+      "recall_at_5": 0.8362539959314153
+    },
+    "Random": {
+      "complete_recall_at_5": 0.12554489973844812,
+      "mrr": 0.20299117599279395,
+      "ndcg_at_10": 0.21193024363192084,
+      "recall_at_1": 0.04585149665794827,
+      "recall_at_5": 0.2059503051438535
+    }
+  },
+  "primary_metric": "mrr",
+  "question_count": 1147,
+  "recall_definition": "fraction_of_all_gold_candidates_retrieved",
+  "seed": 42,
+  "selection_frozen_before_test": true,
+  "selection_sha256": "eaeba9b9a09ed30960ffe71bebaf4e5d1ab5dff80b6b90cc70a4a57d52a17395",
+  "split": "test",
+  "teacher_quality_retained": 1.0329610481267513,
+  "teacher_quality_retained_definition": "Distilled BGE NDCG@10 divided by Qwen teacher NDCG@10",
+  "test_data_sha256": "14b7b00bced86a9a37a040f0c2fc14ab1cdef7c43f895e21ff4da54cb668b975",
+  "tie_policy": "stable_original_candidate_order"
+}

@@ -71,5 +71,7 @@ def test_final_bundle_requires_selection_and_includes_locked_test(tmp_path: Path
         manifest = json.loads(archive.read("bundle_manifest.json"))
         assert manifest["test_access_gate"] == "frozen final selection"
         assert "outputs/final_selection.json" in names
+        assert "outputs/final_test_results.json" in names
+        assert "outputs/efficiency_results.json" in names
         assert "data/processed/test.jsonl" in names
         assert "notebooks/05_colab_final_evaluation.ipynb" in names

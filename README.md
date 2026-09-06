@@ -4,6 +4,8 @@
 
 > On FinQA report-level candidate sets, does teacher-score distillation improve BGE-small beyond ordinary hard-label fine-tuning?
 
+**Answer: no.** On the locked 1,147-question test split, distilled BGE reaches MRR 0.846864, while the matched hard-label BGE reaches 0.934211 (Distilled minus Hard = -0.087347). Distillation improves substantially over frozen BGE, but ordinary hard-label fine-tuning is the stronger student treatment under this fixed experiment.
+
 The repository fixes the experiment contract, materializes one shared training set for both student treatments, and keeps modelling and evaluation logic reproducible. Later work must not silently change the contract below.
 
 ## Experiment contract
@@ -24,10 +26,11 @@ The machine-readable source of truth is [`configs/beginner.yaml`](configs/beginn
 
 ## Required experiment table
 
-Every final result table must contain all five rows. The two trained student rows use the same BGE-small architecture, candidate sets, seed, training budget, and evaluation code; only their supervision differs.
+Every final result table must contain all six rows. The two trained student rows use the same BGE-small architecture, candidate sets, seed, training budget, and evaluation code; only their supervision differs.
 
 | System | Training or scoring signal | Role |
 |---|---|---|
+| Random | Seeded random ranking | Sanity check |
 | BM25 | Lexical BM25 score; no neural training | Lexical baseline |
 | Frozen BGE-small | Off-the-shelf BGE-small similarity; no fine-tuning | Pretrained student baseline |
 | Hard-label BGE-small | Equal-mass distribution over all FinQA gold labels | Ordinary fine-tuning baseline |
@@ -48,13 +51,13 @@ Evidence candidates are sorted from highest to lowest score. A question can have
 | NDCG@10 | Binary-relevance DCG at 10 divided by the ideal DCG for all gold facts | Secondary metric |
 | CompleteRecall@5 | Fraction of questions for which every gold fact is in the top 5 | Secondary metric |
 
-Use development MRR to make configuration decisions. After selecting one final configuration, evaluate all five systems on the test set and report every metric plus the absolute Distilled-minus-Hard delta. The beginner experiment answers “yes” only when the final distilled student's test MRR is greater than the final hard-label student's test MRR; the size of the delta and all secondary metrics must still be shown.
+Use development MRR to make configuration decisions. After selecting one final configuration, evaluate all six systems on the test set and report every metric plus the absolute Distilled-minus-Hard delta. The beginner experiment answers “yes” only when the final distilled student's test MRR is greater than the final hard-label student's test MRR; the size of the delta and all secondary metrics must still be shown.
 
 ## Scope restrictions
 
 - Do not substitute another dataset, teacher, student, seed, or retrieval unit in this beginner experiment.
 - Do not tune on, inspect per-example errors from, or repeatedly evaluate the test split before configuration selection is complete.
-- Do not omit any of the five required systems from the final report.
+- Do not omit any of the six required systems from the final report.
 - Do not give the distilled student extra data, candidate sets, optimizer steps, or evaluation treatment that the hard-label student does not receive.
 - Teacher-score distillation means soft supervision derived from the fixed Qwen teacher's scores over the same candidate set. It is not pseudo-label filtering or extra teacher-generated text.
 - Keep report text construction and candidate-set construction identical across systems. Cache candidates and teacher scores so each comparison sees the same examples.
@@ -321,6 +324,19 @@ python src/evaluation/final_comparison.py `
 
 The command validates the fixed 1,147-question test SHA-256, checkpoint provenance, development selection, teacher candidate ordering, and all six result rows. It reports `Distilled BGE NDCG@10 / Qwen teacher NDCG@10` as teacher quality retained and answers the primary MRR comparison directly.
 
+### Final test result
+
+| Model | Recall@1 | Recall@5 | MRR | NDCG@10 | CompleteRecall@5 |
+|---|---:|---:|---:|---:|---:|
+| Random | 0.045851 | 0.205950 | 0.202991 | 0.211930 | 0.125545 |
+| BM25 | 0.351591 | 0.699666 | 0.619426 | 0.636191 | 0.578901 |
+| Frozen BGE | 0.503545 | 0.831495 | 0.787082 | 0.789331 | 0.714037 |
+| Hard-label BGE | **0.650908** | **0.936225** | **0.934211** | **0.916221** | **0.868352** |
+| Distilled BGE | 0.568999 | 0.855246 | 0.846864 | 0.828457 | 0.734961 |
+| Qwen teacher | 0.539509 | 0.836254 | 0.813630 | 0.802022 | 0.718396 |
+
+Distilled minus Hard MRR is -0.087347, so the predeclared decision rule answers **no**. Distillation does improve over frozen BGE by 0.059782 MRR. Teacher quality retained is 1.032961 (103.30%): the distilled student's NDCG@10 exceeds the teacher's, even though it remains well below the hard-label student's NDCG@10.
+
 ## Milestone 12: same-hardware efficiency benchmark
 
 After final quality evaluation, benchmark Qwen and the selected distilled checkpoint in one process on one CUDA device:
@@ -337,6 +353,17 @@ python src/evaluation/benchmark_efficiency.py `
 ```
 
 The deterministic benchmark sample contains 100 unique processed FinQA candidates. It reports parameter count, parameter-and-buffer bytes, peak allocated CUDA memory, median candidate precomputation time, query latency, online rank-100 latency, and candidates per second. BGE candidate embeddings are normalized and precomputed; that cost is reported separately. Qwen cannot precompute query-independent candidate embeddings, so its rank-100 timing cross-encodes all pairs. The resulting table combines test NDCG@10 with efficiency.
+
+### Quality–efficiency result
+
+All timings are medians from five measured runs after warm-up on the same Tesla T4.
+
+| Model | Test NDCG@10 | Parameters | Model MiB | Peak GPU MiB | Candidate precompute | Query latency | Rank 100 | Candidates/s |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Qwen teacher | 0.802022 | 595,776,512 | 1,136.35 | 2,067.97 | n/a | 120.628 ms | 7,516.459 ms | 13.30 |
+| Distilled BGE | 0.828457 | 33,360,000 | 127.27 | 293.83 | 211.501 ms | 9.473 ms | 9.958 ms | 10,041.79 |
+
+With candidate embeddings precomputed, distilled BGE ranks 100 candidates about 755 times faster, uses about 7 times less peak GPU memory, and has about 17.9 times fewer parameters. Its one-time 100-candidate precomputation cost is reported separately and is not included in the online rank-100 latency.
 
 ### Running in Colab without publishing local changes
 
@@ -371,5 +398,5 @@ Open `notebooks/05_colab_final_evaluation.ipynb`, upload that final bundle, and 
 - [x] Milestone 8: one deterministic 6,251-row artifact retains every gold fact and exactly aligns candidate, label, text, and teacher-score order.
 - [x] Milestone 9: the original temperature-1 hard-label GPU run completed all three epochs; its best checkpoint was reloaded and verified.
 - [x] Milestone 10: both matched GPU treatments completed all epochs; hard-label epoch 3 and distilled epoch 2 were reloaded, compared, and frozen.
-- [ ] Milestone 11: final selection and the locked six-model test pipeline are implemented; public-test scores remain pending the final Colab run.
-- [ ] Milestone 12: same-hardware benchmark and quality–efficiency reporting are implemented; measured GPU results remain pending the final Colab run.
+- [x] Milestone 11: the locked six-model comparison completed on all 1,147 test questions and answers the research question.
+- [x] Milestone 12: Qwen and distilled BGE were benchmarked sequentially on the same Tesla T4 and the quality–efficiency table is saved.
