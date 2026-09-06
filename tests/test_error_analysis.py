@@ -7,10 +7,12 @@ import pytest
 from finevid_distill.evaluation.error_analysis import (
     ERROR_MODEL_LABELS,
     FAILURE_CATEGORIES,
+    MAX_BGE_DEVICE_DRIFT_QUESTIONS,
     build_review_packet,
     load_score_cache,
     ranking_detail,
     select_failure_instances,
+    validate_metric_reproduction,
     write_score_cache,
 )
 from finevid_distill.evaluation.metrics import mean_metrics
@@ -154,6 +156,12 @@ def test_packet_selects_equal_genuine_failures_and_reproduces_metrics() -> None:
         "Distilled BGE": 3,
         "Qwen teacher": 2,
     }
+    assert packet["review_ranking_failure_counts"] == packet["full_test_failure_counts"]
+    assert all(
+        delta == pytest.approx(0.0)
+        for model_deltas in packet["metric_deltas_from_locked_final"].values()
+        for delta in model_deltas.values()
+    )
     assert [instance["failure_model"] for instance in packet["instances"]] == [
         label for label in ERROR_MODEL_LABELS for _ in range(2)
     ]
@@ -161,6 +169,36 @@ def test_packet_selects_equal_genuine_failures_and_reproduces_metrics() -> None:
         instance["models"][instance["failure_model"]]["failed_complete_recall_at_5"]
         for instance in packet["instances"]
     )
+
+
+def test_metric_reproduction_bounds_bge_device_drift_and_keeps_teacher_exact() -> None:
+    question_count = 1_000
+    expected = {"ndcg_at_10": 0.8}
+    allowed = MAX_BGE_DEVICE_DRIFT_QUESTIONS / question_count
+
+    deltas = validate_metric_reproduction(
+        "Frozen BGE",
+        {"ndcg_at_10": expected["ndcg_at_10"] + allowed * 0.999},
+        expected,
+        question_count,
+    )
+    assert deltas["ndcg_at_10"] == pytest.approx(allowed * 0.999)
+
+    with pytest.raises(ValueError, match="device-drift bound"):
+        validate_metric_reproduction(
+            "Frozen BGE",
+            {"ndcg_at_10": expected["ndcg_at_10"] + allowed + 1e-6},
+            expected,
+            question_count,
+        )
+
+    with pytest.raises(ValueError, match="device-drift bound"):
+        validate_metric_reproduction(
+            "Qwen teacher",
+            {"ndcg_at_10": expected["ndcg_at_10"] + 1e-9},
+            expected,
+            question_count,
+        )
 
 
 def test_failure_sampler_rejects_nonpositive_or_oversized_requests() -> None:

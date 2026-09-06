@@ -398,7 +398,7 @@ python scripts/package_colab.py `
   --output outputs/finevid_error_analysis_source.zip
 ```
 
-Open `notebooks/06_colab_error_analysis.ipynb` and upload that bundle. The notebook never loads Qwen: it reuses `teacher_test_scores.jsonl`, scores the three BGE variants, verifies that all four aggregate metric rows exactly reproduce the locked final result, and downloads `milestone13_review_packet.zip`. Model score caches are saved after each model, so a disconnected run resumes without repeating completed scoring. A CPU runtime is valid; a GPU only makes BGE encoding faster.
+Open `notebooks/06_colab_error_analysis.ipynb` and upload that bundle. The notebook never loads Qwen: it reuses `teacher_test_scores.jsonl`, scores the three BGE variants, verifies Qwen exactly, and records any BGE CPU/CUDA ranking drift under a strict two-question-equivalent bound before downloading `milestone13_review_packet.zip`. Model score caches are saved after each model, so a disconnected run resumes without repeating completed scoring. A CPU runtime is valid; a GPU only makes BGE encoding faster.
 
 The packet contains exactly 80 genuine failure instances: 20 per model. Half of each sample is prioritized for a contrast with the hard-label or distilled student when enough such cases exist, and the remainder uses deterministic seed-42 sampling. Each instance includes the question, gold candidates, original `gold_inds`, program, answer, gold ranks, top-ten result text and scores, and peer-model rankings. Human review assigns exactly one of the nine declared categories plus a concrete note to every instance. This is post-hoc interpretation only: no model, hyperparameter, or test result may be changed afterward.
 

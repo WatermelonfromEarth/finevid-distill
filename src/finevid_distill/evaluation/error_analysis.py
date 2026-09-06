@@ -51,8 +51,48 @@ FAILURE_CATEGORIES = (
 )
 FAILURE_DEFINITION = "not every gold candidate appears in the first five results"
 SCORE_CACHE_SCHEMA_VERSION = 1
-PACKET_SCHEMA_VERSION = 1
+PACKET_SCHEMA_VERSION = 2
 DEFAULT_FAILURES_PER_MODEL = 20
+MAX_BGE_DEVICE_DRIFT_QUESTIONS = 2
+
+
+def validate_metric_reproduction(
+    label: str,
+    calculated: Mapping[str, float],
+    expected: Mapping[str, float],
+    question_count: int,
+) -> dict[str, float]:
+    """Validate rankings while allowing tightly bounded CPU/CUDA tie drift."""
+    if question_count <= 0:
+        raise ValueError("question_count must be positive.")
+    tolerance = (
+        1e-12
+        if label == "Qwen teacher"
+        else MAX_BGE_DEVICE_DRIFT_QUESTIONS / question_count
+    )
+    deltas: dict[str, float] = {}
+    for metric, value in calculated.items():
+        if metric not in expected:
+            raise ValueError(f"{label} final result is missing {metric}.")
+        expected_value = float(expected[metric])
+        delta = float(value) - expected_value
+        deltas[metric] = delta
+        if not math.isclose(float(value), expected_value, rel_tol=0.0, abs_tol=tolerance):
+            raise ValueError(
+                f"{label} {metric} does not reproduce the final result within "
+                f"the allowed device-drift bound: calculated={float(value):.12f}, "
+                f"expected={expected_value:.12f}, delta={delta:+.12f}, "
+                f"tolerance={tolerance:.12f}."
+            )
+    return deltas
+
+
+def _locked_failure_count(metrics: Mapping[str, float], question_count: int) -> int:
+    successes = float(metrics["complete_recall_at_5"]) * question_count
+    rounded_successes = round(successes)
+    if not math.isclose(successes, rounded_successes, rel_tol=0.0, abs_tol=1e-9):
+        raise ValueError("Locked CompleteRecall@5 does not imply an integer case count.")
+    return question_count - rounded_successes
 
 
 def _slug(label: str) -> str:
@@ -305,6 +345,8 @@ def build_review_packet(
         raise ValueError("Duplicate raw FinQA question IDs.")
     cases: list[dict[str, Any]] = []
     per_model_details: dict[str, list[dict[str, Any]]] = {}
+    review_device_metrics: dict[str, dict[str, float]] = {}
+    metric_deltas_from_locked_final: dict[str, dict[str, float]] = {}
     for label in ERROR_MODEL_LABELS:
         rows = _validate_score_rows(records, score_rows_by_model[label])
         per_model_details[label] = [
@@ -313,9 +355,10 @@ def build_review_packet(
         ]
         calculated = mean_metrics([detail["metrics"] for detail in per_model_details[label]])
         expected = final_metrics[label]
-        for metric, value in calculated.items():
-            if not math.isclose(value, float(expected[metric]), rel_tol=0, abs_tol=1e-12):
-                raise ValueError(f"{label} {metric} does not reproduce the final result.")
+        review_device_metrics[label] = calculated
+        metric_deltas_from_locked_final[label] = validate_metric_reproduction(
+            label, calculated, expected, len(records)
+        )
 
     for index, record in enumerate(records):
         raw = raw_by_id.get(record["question_id"])
@@ -359,10 +402,14 @@ def build_review_packet(
             }
         )
 
-    failure_counts = {
+    review_ranking_failure_counts = {
         label: sum(
             detail["failed_complete_recall_at_5"] for detail in per_model_details[label]
         )
+        for label in ERROR_MODEL_LABELS
+    }
+    locked_failure_counts = {
+        label: _locked_failure_count(final_metrics[label], len(records))
         for label in ERROR_MODEL_LABELS
     }
     return {
@@ -380,11 +427,15 @@ def build_review_packet(
             "equal per-model sample; half prioritized for a hard-vs-distilled contrast "
             "when available, remainder seeded random among that model's failures"
         ),
-        "full_test_failure_counts": failure_counts,
+        "full_test_failure_counts": locked_failure_counts,
+        "review_ranking_failure_counts": review_ranking_failure_counts,
         "full_test_complete_recall_at_5": {
             label: final_metrics[label]["complete_recall_at_5"] for label in ERROR_MODEL_LABELS
         },
         "final_metrics": {label: dict(final_metrics[label]) for label in ERROR_MODEL_LABELS},
+        "review_device_metrics": review_device_metrics,
+        "metric_deltas_from_locked_final": metric_deltas_from_locked_final,
+        "bge_device_drift_bound_questions": MAX_BGE_DEVICE_DRIFT_QUESTIONS,
         "review_instructions": (
             "Assign exactly one primary category and a concrete note to every instance. "
             "Use top-10, gold ranks, peer-model rankings, original annotations, program, "
